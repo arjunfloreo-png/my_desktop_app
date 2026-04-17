@@ -1,13 +1,20 @@
+
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:video_player/video_player.dart';
 
 const appId = "9bbcfb22bb73429fa08643c4da2fcc0b";
 const token =
-    "007eJxTYJjz7fcRo9++mWvOVotP+1KifIBJ13DJ29QFRyJ69338sG+lAoNlUlJyWpKRUVKSubGJkWVaooGFmYlxsklKolFacrJBUvzHu5kNgYwMC3/1sTIyQCCIL8yQllNaUpJaFJaZkprvnJiT41hQwMAAAPUPKpA=";
+    "007eJxTYNi3clLMklOlk9c7l+6cKS6jwvQ/supwTOSlW+/OMEkePPFfgcEyKSk5LcnIKCnJ3NjEyDIt0cDCzMQ42SQl0SgtOdkgiWXJg8yGQEYG35sBLIwMEAjiCzOk5ZSWlKQWhWWmpOY7J+bkOBYUMDAAAB1uJ6I=";
 const channel = "flutterVideoCallApp";
+
+const videoUrl =
+    "https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4";
 
 void main() => runApp(const MaterialApp(
       debugShowCheckedModeBanner: false,
@@ -26,17 +33,109 @@ class _MyAppState extends State<MyApp> {
   bool _localUserJoined = false;
   late RtcEngine _engine;
 
+  late WebSocketChannel socket;
+  /// ✅ AUTO ROLE
+  String role = "";
+  String sessionId = "session_123";
+  bool isSocketConnected = false;
+
+  late VideoPlayerController _videoController;
+  bool isVideoInitialized = false;
+  bool isPlaying = false;
+
   bool isMuted = false;
   bool isVideoOff = false;
   bool showControls = true;
-  bool isScreenSharing = false;
+    bool isScreenSharing = false;
 
   List<_VideoReaction> reactions = [];
+  /// ✅ DEVICE DETECTION
+  bool isTablet(BuildContext context) {
+    return MediaQuery.of(context).size.shortestSide >= 600;
+  }
 
   @override
   void initState() {
     super.initState();
     initAgora();
+    connectSocket();
+    initVideo();
+  }
+  /// ✅ ROLE + SOCKET INIT
+    @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    if (!isSocketConnected) {
+      role = isTablet(context) ? "therapist" : "client";
+      connectSocket();
+      isSocketConnected = true;
+    }
+  }
+
+
+
+  Future<void> initVideo() async {
+    _videoController = VideoPlayerController.network(videoUrl);
+    await _videoController.initialize();
+    await _videoController.pause();
+
+    setState(() => isVideoInitialized = true);
+  }
+
+  void connectSocket() {
+    socket = WebSocketChannel.connect(
+      Uri.parse('ws://192.168.29.75:3000'),
+    );
+
+    socket.sink.add(jsonEncode({
+      "type": "JOIN",
+      "role": role,
+      "sessionId": sessionId,
+    }));
+
+    socket.stream.listen((message) {
+      final data = jsonDecode(message);
+      if (role == "client") {
+        handleClientEvent(data);
+      }
+    });
+  }
+
+  void handleClientEvent(Map data) {
+    final type = data['type'];
+    final position = data['position'] ?? 0;
+    final timestamp = data['timestamp'] ?? 0;
+
+    final delay =
+        (DateTime.now().millisecondsSinceEpoch - timestamp) / 1000;
+    final correctedPosition = position + delay;
+
+    if (!isVideoInitialized) return;
+
+    if (type == "PLAY") {
+      _videoController
+          .seekTo(Duration(seconds: correctedPosition.toInt()));
+      _videoController.play();
+      setState(() => isPlaying = true);
+    }
+
+    if (type == "PAUSE") {
+      _videoController.pause();
+      setState(() => isPlaying = false);
+    }
+
+    if (type == "SEEK") {
+      _videoController.seekTo(Duration(seconds: position.toInt()));
+    }
+  }
+
+  void sendEvent(String type, {double position = 0}) {
+    socket.sink.add(jsonEncode({
+      "type": type,
+      "position": position,
+      "timestamp": DateTime.now().millisecondsSinceEpoch,
+    }));
   }
 
   Future<void> initAgora() async {
@@ -45,27 +144,25 @@ class _MyAppState extends State<MyApp> {
     _engine = createAgoraRtcEngine();
     await _engine.initialize(const RtcEngineContext(
       appId: appId,
-      channelProfile: ChannelProfileType.channelProfileLiveBroadcasting,
+      channelProfile: ChannelProfileType.channelProfileCommunication,
     ));
+
+    await _engine.enableVideo();
 
     _engine.registerEventHandler(
       RtcEngineEventHandler(
-        onJoinChannelSuccess: (connection, elapsed) {
+        onJoinChannelSuccess: (_, __) {
           setState(() => _localUserJoined = true);
         },
-        onUserJoined: (connection, remoteUid, elapsed) {
-          setState(() => _remoteUid = remoteUid);
+        onUserJoined: (_, uid, __) {
+          setState(() => _remoteUid = uid);
         },
-        onUserOffline: (connection, remoteUid, reason) {
+        onUserOffline: (_, __, ___) {
           setState(() => _remoteUid = null);
         },
       ),
     );
 
-    await _engine.setClientRole(
-        role: ClientRoleType.clientRoleBroadcaster);
-
-    await _engine.enableVideo();
     await _engine.startPreview();
 
     await _engine.joinChannel(
@@ -78,82 +175,142 @@ class _MyAppState extends State<MyApp> {
 
   @override
   void dispose() {
-    _dispose();
+    _videoController.dispose();
+    socket.sink.close();
+    _engine.leaveChannel();
+    _engine.release();
     super.dispose();
-  }
-
-  Future<void> _dispose() async {
-    await _engine.leaveChannel();
-    await _engine.release();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: GestureDetector(
-        onTap: () {
-          setState(() => showControls = !showControls);
-        },
-        child: Stack(
-          children: [
-            /// 🎥 Remote Video
-            Center(child: _remoteVideo()),
+      body: Stack(
+        children: [
+          /// 🎥 Remote Agora Video
+          Center(child: _remoteVideo()),
 
-            /// 🎥 Local Video
-            Align(
-              alignment: Alignment.topLeft,
-              child: Container(
-                margin: const EdgeInsets.all(12),
-                width: 100,
-                height: 150,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.white),
+          /// 🎬 Video Player + Overlay Controls
+          if (isVideoInitialized)
+            Stack(
+              children: [
+                Center(
+                  child: AspectRatio(
+                    aspectRatio: _videoController.value.aspectRatio,
+                    child: VideoPlayer(_videoController),
+                  ),
                 ),
-                child: _localUserJoined
-                    ? AgoraVideoView(
-                        controller: VideoViewController(
-                          rtcEngine: _engine,
-                          canvas: const VideoCanvas(uid: 0),
-                        ),
-                      )
-                    : const Center(child: CircularProgressIndicator()),
-              ),
+                _videoOverlayControls(),
+              ],
             ),
 
-            /// 🔥 FLOATING VIDEO REACTIONS
+          /// 🎥 Local Camera
+          Positioned(
+            top: 40,
+            left: 10,
+            child: Container(
+              width: 100,
+              height: 150,
+              decoration:
+                  BoxDecoration(border: Border.all(color: Colors.white)),
+              child: _localUserJoined
+                  ? AgoraVideoView(
+                      controller: VideoViewController(
+                        rtcEngine: _engine,
+                        canvas: const VideoCanvas(uid: 0),
+                      ),
+                    )
+                  : const Center(child: CircularProgressIndicator()),
+            ),
+          ),
+
+        /// 🔥 FLOATING VIDEO REACTIONS
             ...reactions.map((r) => _floatingReaction(r)).toList(),
 
             /// 🎛 CONTROLS
-            if (showControls) _buildControls(),
+            if (showControls) _bottomControls(),
+        ],  /// Bottom Controls (mute/end call)
+  
+        //  if (role == "therapist") _bottomControls(),
+      ),
+    );
+  }
+
+  Widget _videoOverlayControls() {
+    if (role != "therapist") return const SizedBox();
+
+    return Positioned.fill(
+      child: Center(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _overlayButton(
+              icon: Icons.replay_10,
+              onTap: () {
+                final current =
+                    _videoController.value.position.inSeconds;
+                final newPos = (current - 10).clamp(0, 99999);
+
+                _videoController.seekTo(Duration(seconds: newPos));
+                sendEvent("SEEK", position: newPos.toDouble());
+              },
+            ),
+            const SizedBox(width: 20),
+            _overlayButton(
+              icon: isPlaying ? Icons.pause : Icons.play_arrow,
+              onTap: () {
+                setState(() => isPlaying = !isPlaying);
+
+                if (isPlaying) {
+                  _videoController.play();
+                  sendEvent("PLAY",
+                      position: _videoController.value.position.inSeconds
+                          .toDouble());
+                } else {
+                  _videoController.pause();
+                  sendEvent("PAUSE");
+                }
+              },
+            ),
+            const SizedBox(width: 20),
+            _overlayButton(
+              icon: Icons.forward_10,
+              onTap: () {
+                final current =
+                    _videoController.value.position.inSeconds;
+                final newPos = current + 10;
+
+                _videoController.seekTo(Duration(seconds: newPos));
+                sendEvent("SEEK", position: newPos.toDouble());
+              },
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _remoteVideo() {
-    if (_remoteUid != null) {
-      return AgoraVideoView(
-        controller: VideoViewController.remote(
-          rtcEngine: _engine,
-          canvas: VideoCanvas(uid: _remoteUid),
-          connection: const RtcConnection(channelId: channel),
+  Widget _overlayButton({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: const BoxDecoration(
+          color: Colors.black54,
+          shape: BoxShape.circle,
         ),
-      );
-    } else {
-      return const Center(
-        child: Text(
-          'Waiting for user...',
-          style: TextStyle(color: Colors.white),
-        ),
-      );
-    }
+        child: Icon(icon, color: Colors.white, size: 30),
+      ),
+    );
   }
 
-  Widget _buildControls() {
+  Widget _bottomControls() {
     return Positioned(
-      bottom: 30,
+      bottom: 20,
       left: 0,
       right: 0,
       child: Row(
@@ -179,21 +336,21 @@ class _MyAppState extends State<MyApp> {
               _engine.switchCamera();
             },
           ),
-          _circleButton(
-            icon: isScreenSharing
-                ? Icons.stop_screen_share
-                : Icons.screen_share,
-            onTap: () async {
-              setState(() => isScreenSharing = !isScreenSharing);
-              if (isScreenSharing) {
-                await _engine.startScreenCapture(
-                  const ScreenCaptureParameters2(captureVideo: true),
-                );
-              } else {
-                await _engine.stopScreenCapture();
-              }
-            },
-          ),
+          // _circleButton(
+          //   icon: isScreenSharing
+          //       ? Icons.stop_screen_share
+          //       : Icons.screen_share,
+          //   onTap: () async {
+          //     setState(() => isScreenSharing = !isScreenSharing);
+          //     if (isScreenSharing) {
+          //       await _engine.startScreenCapture(
+          //         const ScreenCaptureParameters2(captureVideo: true),
+          //       );
+          //     } else {
+          //       await _engine.stopScreenCapture();
+          //     }
+          //   },
+          // ),
 
           /// 🎥 VIDEO REACTIONS BUTTON
           _circleButton(
@@ -215,6 +372,23 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
+
+  Widget _remoteVideo() {
+    if (_remoteUid != null) {
+      return AgoraVideoView(
+        controller: VideoViewController.remote(
+          rtcEngine: _engine,
+          canvas: VideoCanvas(uid: _remoteUid),
+          connection: const RtcConnection(channelId: channel),
+        ),
+      );
+    }
+    return const Center(
+      child: Text("Waiting for user...",
+          style: TextStyle(color: Colors.white)),
+    );
+  }
+
   Widget _circleButton({
     required IconData icon,
     required VoidCallback onTap,
@@ -228,7 +402,7 @@ class _MyAppState extends State<MyApp> {
       ),
     );
   }
-
+  
   /// 🎥 SHOW VIDEO REACTIONS ROW
   void _showReactions() {
     showModalBottomSheet(
@@ -303,4 +477,5 @@ class _VideoReaction {
   final double startX;
 
   _VideoReaction(this.path, this.startX);
+
 }
