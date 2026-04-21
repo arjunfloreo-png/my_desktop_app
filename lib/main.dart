@@ -11,95 +11,112 @@ import 'package:video_player/video_player.dart';
 const appId = "9bbcfb22bb73429fa08643c4da2fcc0b";
 const token =
     "007eJxTYNhxbMulxrbZqsE7c0Jl7+l2cG6tn9Hy7t/rDZVrL2y7oK+lwGCZlJSclmRklJRkbmxiZJmWaGBhZmKcbJKSaJSWnGyQ9FricWZDICOD9ZVpDIxQCOILM6TllJaUpBaFZaak5jsn5uQ4FhQwMAAAiAco+A==";
+
 const channel = "flutterVideoCallApp";
 
 const videoUrl =
     "https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4";
+    enum UserRole { client, therapist }
 
-void main() => runApp(const MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: MyApp(),
-    ));
+extension UserRoleX on UserRole {
+  bool get isTherapist => this == UserRole.therapist;
+}
 
+// ================= MAIN =================
+void main() {
+  runApp(const MaterialApp(
+    debugShowCheckedModeBanner: false,
+    home: RoleSelectionScreen(),
+  ));
+}
+
+/// ================= ROLE SELECTION =================
+class RoleSelectionScreen extends StatelessWidget {
+  const RoleSelectionScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text("Select Role",
+                style: TextStyle(color: Colors.white, fontSize: 24)),
+
+            const SizedBox(height: 30),
+
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const MyApp(role: "therapist"),
+                  ),
+                );
+              },
+              child: const Text("Therapist"),
+            ),
+
+            const SizedBox(height: 20),
+
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const MyApp(role: "client"),
+                  ),
+                );
+              },
+              child: const Text("Client"),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// ================= MAIN APP =================
 class MyApp extends StatefulWidget {
-  const MyApp({Key? key}) : super(key: key);
+  final String role;
+
+  const MyApp({super.key, required this.role});
 
   @override
   State<MyApp> createState() => _MyAppState();
 }
 
-
 class _MyAppState extends State<MyApp> {
   int? _remoteUid;
-  bool _localUserJoined = false;
-   RtcEngine? _engine;
+  late RtcEngine _engine;
 
   late WebSocketChannel socket;
-  String role = "";
+
+  late String role;
   String sessionId = "session_123";
   bool isSocketConnected = false;
-  String connectionStatus = "Connecting...";
 
   late VideoPlayerController _videoController;
   bool isVideoInitialized = false;
   bool isPlaying = false;
-bool isEngineReady = false;
-  bool isMuted = false;
-  bool isVideoOff = false;
-  bool showControls = true;
-  bool isScreenSharing = false;  // ✅ SCREEN SHARING STATE
-  bool showVideoLibrary = false; // ✅ VIDEO LIBRARY WINDOW
 
-  // ✅ AVAILABLE VIDEOS FOR SELECTION
-  final List<Map<String, String>> availableVideos = [
-    {
-      'title': 'Bee Video',
-      'url': 'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4',
-      'thumbnail': 'assets/images/bee_thumb.jpg',
-    },
-    {
-      'title': 'Butterfly Video',
-      'url': 'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4',
-      'thumbnail': 'assets/images/butterfly_thumb.jpg',
-    },
-    {
-      'title': 'Relaxation Video',
-      'url': 'https://sample-videos.com/zip/10/mp4/SampleVideo_1280x720_1mb.mp4',
-      'thumbnail': 'assets/images/relax_thumb.jpg',
-    },
-    {
-      'title': 'Nature Sounds',
-      'url': 'https://sample-videos.com/zip/10/mp4/SampleVideo_1280x720_2mb.mp4',
-      'thumbnail': 'assets/images/nature_thumb.jpg',
-    },
-    // Add more videos here as needed
-  ];
+  bool isMuted = false;
 
   List<_VideoReaction> reactions = [];
-
-  bool isTablet(BuildContext context) {
-    return MediaQuery.of(context).size.shortestSide >= 600;
-  }
 
   @override
   void initState() {
     super.initState();
+    role = widget.role;
+
     initAgora();
-    // Removed initVideo() - no default video on startup
+    initVideo();
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-
-    if (!isSocketConnected) {
-      role = isTablet(context) ? "therapist" : "client";
-      connectSocket();
-      isSocketConnected = true;
-    }
-  }
-
-  /// ---------------- VIDEO ----------------
+  /// ================= VIDEO =================
   Future<void> initVideo() async {
     _videoController = VideoPlayerController.network(videoUrl);
     await _videoController.initialize();
@@ -108,11 +125,8 @@ bool isEngineReady = false;
     setState(() => isVideoInitialized = true);
   }
 
-  /// ---------------- SOCKET ----------------
+  /// ================= SOCKET =================
   void connectSocket() {
-    print("🔌 CONNECTING TO WEBSOCKET as $role");
-    setState(() => connectionStatus = "Connecting...");
-
     socket = WebSocketChannel.connect(
       Uri.parse('ws://192.168.29.75:3000'),
     );
@@ -123,44 +137,25 @@ bool isEngineReady = false;
       "sessionId": sessionId,
     }));
 
-    print("📤 SENT JOIN: $role");
-
     socket.stream.listen((message) {
-      print("--------------------------📨 RAW MESSAGE: $message ----------------");
-      
-      setState(() => connectionStatus = "Connected ✅");
       final data = jsonDecode(message);
       handleSocketEvent(data);
-    }, onError: (error) {
-      print("❌ WEBSOCKET ERROR: $error");
-      setState(() => connectionStatus = "Error: $error");
-    }, onDone: () {
-      print("🔚 WEBSOCKET DONE");
-      setState(() => connectionStatus = "Disconnected");
     });
   }
 
   void handleSocketEvent(Map data) {
     final type = data['type'];
-    print("📨 RECEIVED: $type from ${data['role'] ?? 'unknown'}");
 
-    /// 🔥 REACTION RECEIVE (BOTH SIDES) - SYNCHRONIZED
+    /// REACTIONS
     if (type == "REACTION") {
-      final path = data['path'] as String;
-      final sentTimestamp = data['timestamp'] as int;
-      print("-------------------------🎯 REACTION RECEIVED: $path at $sentTimestamp -----------------");
-      _showReactionDelayed(path, sentTimestamp);
+      _showReactionDelayed(
+        data['path'],
+        data['timestamp'],
+      );
       return;
     }
-    /// 🎬 LOAD VIDEO (CLIENT RECEIVES FROM THERAPIST)
-    if (type == "LOAD_VIDEO") {
-      final videoUrl = data['videoUrl'] as String;
-      final title = data['title'] as String;
-      print("🎬 CLIENT LOADING VIDEO: $title ($videoUrl)");
-      _loadVideoFromTherapist(videoUrl, title);
-      return;
-    }
-    /// Only client syncs video
+
+    /// ONLY CLIENT SYNC VIDEO
     if (role != "client") return;
 
     final position = data['position'] ?? 0;
@@ -168,12 +163,15 @@ bool isEngineReady = false;
 
     final delay =
         (DateTime.now().millisecondsSinceEpoch - timestamp) / 1000;
+
     final correctedPosition = position + delay;
 
     if (!isVideoInitialized) return;
 
     if (type == "PLAY") {
-      _videoController.seekTo(Duration(seconds: correctedPosition.toInt()));
+      _videoController.seekTo(
+        Duration(seconds: correctedPosition.toInt()),
+      );
       _videoController.play();
       setState(() => isPlaying = true);
     }
@@ -196,675 +194,145 @@ bool isEngineReady = false;
     }));
   }
 
-  /// ---------------- SCREEN SHARING ----------------
-  void _toggleScreenShare() async {
-    setState(() {
-      isScreenSharing = !isScreenSharing;
-      showVideoLibrary = isScreenSharing;
-    });
-
-    if (isScreenSharing) {
-      print("🖥️ SCREEN SHARING ENABLED - Showing video library");
-      // Could add actual screen sharing here if needed
-      // await _engine.startScreenCapture(const ScreenCaptureParameters2(captureVideo: true));
-    } else {
-      print("🖥️ SCREEN SHARING DISABLED - Back to normal video call");
-      showVideoLibrary = false;
-      // await _engine.stopScreenCapture();
-    }
-  }
-
-  /// ✅ SELECT VIDEO FROM LIBRARY
-  Future<void> _selectVideo(String videoUrl, String title) async {
-    print("🎬 SELECTING VIDEO: $title ($videoUrl)");
-    print("-------------------- 📤 SENDING LOAD_VIDEO: $videoUrl -----------------------");
-
-    // Dispose current video
-    if (isVideoInitialized) {
-      await _videoController.dispose();
-      setState(() => isVideoInitialized = false);
-    }
-
-    // Load new video
-    _videoController = VideoPlayerController.network(videoUrl);
-    await _videoController.initialize();
-    await _videoController.pause();
-
-    setState(() {
-      isVideoInitialized = true;
-      isPlaying = false;
-    });
-
-    print("✅ VIDEO LOADED: $title");
-
-    // 🔊 SEND VIDEO TO CLIENT so both devices can hear audio
-    socket.sink.add(jsonEncode({
-      "type": "LOAD_VIDEO",
-      "videoUrl": videoUrl,
-      "title": title,
-      "timestamp": DateTime.now().millisecondsSinceEpoch,
-    }));
-
-    // Close video library after selection
-    setState(() => showVideoLibrary = false);
-  }
-
-  /// 🎬 CLIENT LOADS VIDEO FROM THERAPIST (for synchronized audio)
-  Future<void> _loadVideoFromTherapist(String videoUrl, String title) async {
-    print("🎵 CLIENT LOADING VIDEO FOR AUDIO: $title ($videoUrl)");
-
-    try {
-      // Dispose current video if exists
-      if (isVideoInitialized) {
-        await _videoController.dispose();
-        setState(() => isVideoInitialized = false);
-      }
-
-      // Load the same video as therapist
-      _videoController = VideoPlayerController.network(videoUrl);
-
-      // Add error handling for initialization
-      await _videoController.initialize().timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          print("❌ VIDEO INITIALIZATION TIMEOUT: $title");
-          throw Exception("Video initialization timeout");
-        },
-      );
-
-      await _videoController.pause();
-
-      setState(() {
-        isVideoInitialized = true;
-        isPlaying = false;
-      });
-
-      print("✅ CLIENT VIDEO LOADED: $title - Ready for synchronized audio playback");
-    } catch (e) {
-      print("❌ ERROR LOADING VIDEO ON CLIENT: $e");
-      setState(() => isVideoInitialized = false);
-    }
-  }
-
-  /// ---------------- VIDEO LIBRARY WINDOW ----------------
-  Widget _videoLibraryWindow() {
-    return Positioned(
-      left: 20,
-      right: 20,
-      bottom: 100,
-      top: 100,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.black87,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white24, width: 2),
-        ),
-        child: Column(
-          children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
-                border: Border(bottom: BorderSide(color: Colors.white24)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    "🎬 Select Video to Share",
-                    // style: TextStyle(
-                    //   color: Colors.white,
-                    //   fontSize: 18,
-                    //   fontWeight: FontWeight.bold,
-                    // ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white),
-                    onPressed: () => setState(() => showVideoLibrary = false),
-                  ),
-                ],
-              ),
-            ),
-
-            // Video Grid
-            Expanded(
-              child: GridView.builder(
-                padding: const EdgeInsets.all(16),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 1.2,
-                ),
-                itemCount: availableVideos.length,
-                itemBuilder: (context, index) {
-                  final video = availableVideos[index];
-                  return _videoLibraryItem(video);
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _videoLibraryItem(Map<String, String> video) {
-    return GestureDetector(
-      onTap: () => _selectVideo(video['url']!, video['title']!),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white10,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white24),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Thumbnail placeholder (you can add actual thumbnails later)
-            Container(
-              width: 80,
-              height: 60,
-              decoration: BoxDecoration(
-                color: Colors.grey,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.video_library,
-                color: Colors.white,
-                size: 30,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              video['title']!,
-              style:  TextStyle(
-                color: Colors.white,
-                
-                // fontSize: 14,
-                // fontWeight: FontWeight.w500,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              "Tap to select",
-              // style: TextStyle(
-              //   color: Colors.white70,
-              //   fontSize: 12,
-              // ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
+  /// ================= REACTIONS =================
   void _sendReaction(String path) {
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final ts = DateTime.now().millisecondsSinceEpoch;
 
-    print("🚀 SENDING REACTION: $path at $timestamp");
-
-    // Send reaction with timestamp for synchronization
     socket.sink.add(jsonEncode({
       "type": "REACTION",
       "path": path,
-      "timestamp": timestamp,
+      "timestamp": ts,
     }));
 
-    // Show locally with delay for sync
-    _showReactionDelayed(path, timestamp);
+    _showReactionDelayed(path, ts);
   }
 
-  void _showReactionDelayed(String path, int sentTimestamp) {
-    final currentTime = DateTime.now().millisecondsSinceEpoch;
-    final timeDiff = currentTime - sentTimestamp;
+  void _showReactionDelayed(String path, int ts) {
+    final delay = max(
+      0,
+      500 - (DateTime.now().millisecondsSinceEpoch - ts),
+    );
 
-    // Calculate delay to ensure both devices show at same time
-    // Use a fixed 500ms delay from when message was sent
-    final delayMs = max(0, 500 - timeDiff);
-
-    print("⏰ SHOWING REACTION: $path in ${delayMs}ms (diff: ${timeDiff}ms)");
-
-    Future.delayed(Duration(milliseconds: delayMs), () {
-      if (mounted) {
-        print("🎉 DISPLAYING REACTION: $path");
-        _addReaction(path);
-      }
+    Future.delayed(Duration(milliseconds: delay), () {
+      if (mounted) _addReaction(path);
     });
   }
 
   void _addReaction(String path) {
-    print("🎨 ADDING REACTION: $path");
     final random = Random();
-    final screenWidth = MediaQuery.of(context).size.width;
+    final width = MediaQuery.of(context).size.width;
 
     final reaction = _VideoReaction(
       DateTime.now().microsecondsSinceEpoch.toString(),
       path,
-      random.nextDouble() * (screenWidth - 60),
+      random.nextDouble() * (width - 60),
     );
 
-    print("📍 REACTION POSITION: ${reaction.startX}");
-
-    /// limit (optional safety)
-    if (reactions.length > 30) {
-      reactions.removeAt(0);
-    }
-
     setState(() => reactions.add(reaction));
-    print("✅ REACTION ADDED TO LIST: ${reactions.length} total");
 
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
-        setState(() =>
-            reactions.removeWhere((r) => r.id == reaction.id));
-        print("🗑️ REACTION REMOVED: ${reaction.id}");
+        setState(() => reactions.removeWhere((r) => r.id == reaction.id));
       }
     });
   }
 
- 
- /// ---------------- AGORA ----------------
- Future<void> initAgora() async {
-  await [Permission.microphone, Permission.camera].request();
+  /// ================= AGORA =================
+  Future<void> initAgora() async {
+    await [Permission.microphone, Permission.camera].request();
 
-  _engine = createAgoraRtcEngine();
+    _engine = createAgoraRtcEngine();
 
-  await _engine!.initialize(const RtcEngineContext(
-    appId: appId,
-    channelProfile: ChannelProfileType.channelProfileCommunication,
-  ));
+    await _engine.initialize(
+      const RtcEngineContext(
+        appId: appId,
+        channelProfile: ChannelProfileType.channelProfileCommunication,
+      ),
+    );
 
-  await _engine!.enableVideo();
+    await _engine.enableVideo();
 
-  _engine!.registerEventHandler(
-    RtcEngineEventHandler(
-      onJoinChannelSuccess: (_, __) {
-        if (mounted) {
-          setState(() {
-            _localUserJoined = true;
-            isEngineReady = true;
-          });
-        }
-      },
-      onUserJoined: (_, uid, __) {
-        if (mounted) {
+    _engine.registerEventHandler(
+      RtcEngineEventHandler(
+        onJoinChannelSuccess: (_, __) {
+          setState(() {});
+        },
+        onUserJoined: (_, uid, __) {
           setState(() => _remoteUid = uid);
-        }
-      },
-      onUserOffline: (_, __, ___) {
-        if (mounted) {
+        },
+        onUserOffline: (_, __, ___) {
           setState(() => _remoteUid = null);
-        }
-      },
-    ),
-  );
+        },
+      ),
+    );
 
-  await _engine!.startPreview();
+    await _engine.startPreview();
 
-  await _engine!.joinChannel(
-    token: token,
-    channelId: channel,
-    uid: 0,
-    options: const ChannelMediaOptions(),
-  );
-}
+    await _engine.joinChannel(
+      token: token,
+      channelId: channel,
+      uid: 0,
+      options: const ChannelMediaOptions(),
+    );
 
-  @override
-  void dispose() {
-    // Only dispose video controller if it was initialized
-    if (isVideoInitialized) {
-      _videoController.dispose();
-    }
-    socket.sink.close();
-    _engine?.leaveChannel();
-    _engine?.release();
-    super.dispose();
+    connectSocket();
   }
 
-  /// ---------------- UI ----------------
- // ONLY UI PART UPDATED — rest of your logic kept SAME
-
-@override
-Widget build(BuildContext context) {
-  return Scaffold(
-    backgroundColor: Colors.black,
-    body: Stack(
-      children: [
-        /// 🎬 VIDEO BACKGROUND
-        if (isVideoInitialized)
-          Stack(
-            children: [
-              Center(
-                child: AspectRatio(
-                  aspectRatio: _videoController.value.aspectRatio,
-                  child: VideoPlayer(_videoController),
-                ),
+  /// ================= UI =================
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          if (isVideoInitialized)
+            Center(
+              child: AspectRatio(
+                aspectRatio: _videoController.value.aspectRatio,
+                child: VideoPlayer(_videoController),
               ),
-              _videoOverlayControls(),
-            ],
-          ),
-
-        /// ✅ MAIN CAMERA UI (FIXED)
-        if (isVideoInitialized)
-          _buildCameraOverlays()
-        else
-          _buildMainCameraLayout(),
-
-        /// 🔥 REACTIONS
-        ...reactions.map((r) => _floatingReaction(r)).toList(),
-
-        /// 🎬 VIDEO LIBRARY
-        if (showVideoLibrary) _videoLibraryWindow(),
-
-        /// DEBUG STATUS
-        Positioned(
-          top: 20,
-          left: 20,
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.black54,
-              borderRadius: BorderRadius.circular(8),
             ),
-            child: Text(
-              "Role: $role\nStatus: $connectionStatus",
-              style: const TextStyle(color: Colors.white, fontSize: 12),
+
+          Positioned(
+            bottom: 100,
+            right: 40,
+            child: SizedBox(
+              width: 150,
+              height: 180,
+              child: _remoteView(),
             ),
           ),
-        ),
 
-        if (showControls) _bottomControls(),
-      ],
-    ),
-  );
-}
+          ...reactions.map(_floatingReaction).toList(),
 
-Widget _buildMainCameraLayout() {
-  final bool isTherapist = role == "therapist";
-
-  return Stack(
-    children: [
-      /// 🔴 FULL SCREEN
-      Positioned.fill(
-        child: isTherapist
-            ? _localUserView()     // therapist full
-            : _remoteUserView(),  // client sees therapist full
+          _controls(),
+        ],
       ),
-
-      /// 🟢 FLOATING WINDOW
-      Positioned(
-        bottom: 100,
-        right: 20,
-        child: Container(
-          width: 140,
-          height: 100,
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.white, width: 2),
-            borderRadius: BorderRadius.circular(10),
-            color: Colors.black,
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: isTherapist
-                ? _remoteUserView() // therapist sees client small
-                : _localUserView(), // client sees self small
-          ),
-        ),
-      ),
-
-      /// LABEL
-      Positioned(
-        bottom: 20,
-        left: 20,
-        child: Container(
-          padding: const EdgeInsets.all(6),
-          color: Colors.black54,
-          child: Text(
-            isTherapist ? "Your Camera (Therapist)" : "Therapist",
-            style: const TextStyle(color: Colors.white),
-          ),
-        ),
-      ),
-    ],
-  );
-}
-  /// 📹 MAIN VIDEO CALL LAYOUT - Both cameras visible
-  // Widget _buildVideoCallLayout() {
-  //   return Row(
-  //     children: [
-  //       // Left side - Remote user (therapist/client)
-  //       Expanded(
-  //         child: Container(
-  //           decoration: BoxDecoration(
-  //             border: Border.all(color: Colors.white24, width: 1),
-  //           ),
-  //           child: Stack(
-  //             children: [
-  //               _remoteUserView(),
-  //               Positioned(
-  //                 top: 10,
-  //                 left: 10,
-  //                 child: Container(
-  //                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-  //                   decoration: BoxDecoration(
-  //                     color: Colors.black54,
-  //                     borderRadius: BorderRadius.circular(4),
-  //                   ),
-  //                   child: Text(
-  //                     role == "therapist" ? "Client" : "Therapist",
-  //                     style: const TextStyle(color: Colors.white, fontSize: 12),
-  //                   ),
-  //                 ),
-  //               ),
-  //             ],
-  //           ),
-  //         ),
-  //       ),
-
-  //       // Right side - Local user (self)
-  //       Expanded(
-  //         child: Container(
-  //           decoration: BoxDecoration(
-  //             border: Border.all(color: Colors.white24, width: 1),
-  //           ),
-  //           child: Stack(
-  //             children: [
-  //               _localUserView(),
-  //               Positioned(
-  //                 top: 10,
-  //                 left: 10,
-  //                 child: Container(
-  //                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-  //                   decoration: BoxDecoration(
-  //                     color: Colors.black54,
-  //                     borderRadius: BorderRadius.circular(4),
-  //                   ),
-  //                   child: const Text(
-  //                     "You",
-  //                     style: TextStyle(color: Colors.white, fontSize: 12),
-  //                   ),
-  //                 ),
-  //               ),
-  //             ],
-  //           ),
-  //         ),
-  //       ),
-  //     ],
-  //   );
-  // }
-
-  /// 📹 CAMERA OVERLAYS - When shared video is playing
-  Widget _buildCameraOverlays() {
-    return Stack(
-      children: [
-        // Remote user in top-left corner
-        Positioned(
-          top: 20,
-          left: 20,
-          child: Container(
-            width: 150,
-            height: 100,
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.white, width: 2),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: _remoteUserView(),
-            ),
-          ),
-        ),
-
-        // Local user in top-right corner
-        Positioned(
-          top: 20,
-          right: 20,
-          child: Container(
-            width: 150,
-            height: 100,
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.white, width: 2),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: _localUserView(),
-            ),
-          ),
-        ),
-
-        // Labels for camera overlays
-        Positioned(
-          top: 25,
-          left: 30,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: Colors.black54,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              role == "therapist" ? "Client" : "Therapist",
-              style: const TextStyle(color: Colors.white, fontSize: 10),
-            ),
-          ),
-        ),
-
-        Positioned(
-          top: 25,
-          right: 30,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: Colors.black54,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: const Text(
-              "You",
-              style: TextStyle(color: Colors.white, fontSize: 10),
-            ),
-          ),
-        ),
-      ],
     );
   }
 
- Widget _remoteUserView() {
-  if (!isEngineReady || _engine == null) {
-    return const Center(child: CircularProgressIndicator());
-  }
+  Widget _remoteView() {
+    if (_remoteUid == null) {
+      return Center(
+        child: Text(
+          role == "client"
+              ? "Waiting for therapist..."
+              : "Waiting for client...",
+          style: const TextStyle(color: Colors.white),
+        ),
+      );
+    }
 
-  if (_remoteUid != null) {
     return AgoraVideoView(
       controller: VideoViewController.remote(
-        rtcEngine: _engine!,
+        rtcEngine: _engine,
         canvas: VideoCanvas(uid: _remoteUid),
         connection: const RtcConnection(channelId: channel),
       ),
     );
   }
 
-  return Container(
-    color: Colors.black87,
-    child: Center(
-      child: Text(
-        role == "client"
-            ? "Waiting for therapist..."
-            : "Waiting for client...",
-        style: const TextStyle(color: Colors.white70),
-      ),
-    ),
-  );
-}
-
-  // /// 📹 REMOTE USER VIEW
-  // Widget _remoteUserView() {
-  //   if (_remoteUid != null) {
-  //     return AgoraVideoView(
-  //       controller: VideoViewController.remote(
-  //         rtcEngine: _engine,
-  //         canvas: VideoCanvas(uid: _remoteUid),
-  //         connection: const RtcConnection(channelId: channel),
-  //       ),
-  //     );
-  //   }
-
-  //   return Container(
-  //     color: Colors.black87,
-  //     child: Center(
-  //       child: Text(
-  //         role == "client" ? "Waiting for therapist..." : "Waiting for client...",
-  //         style: const TextStyle(color: Colors.white70),
-  //         textAlign: TextAlign.center,
-  //       ),
-  //     ),
-  //   );
-  // }
-
-  /// 📹 LOCAL USER VIEW (Self camera)
- Widget _localUserView() {
-  if (!isEngineReady || _engine == null) {
-    return const Center(child: CircularProgressIndicator());
-  }
-
-  return AgoraVideoView(
-    controller: VideoViewController(
-      rtcEngine: _engine!,
-      canvas: const VideoCanvas(uid: 0),
-    ),
-  );
-}
-
-  Widget _videoOverlayControls() {
-    // Hide controls when video library is open or no video is loaded
-    if (role != "therapist" || showVideoLibrary || !isVideoInitialized) return const SizedBox();
-
-    return Positioned.fill(
-      child: Center(
-        child: IconButton(
-          icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow,
-              color: Colors.white, size: 50),
-          onPressed: () {
-            setState(() => isPlaying = !isPlaying);
-
-            if (isPlaying) {
-              _videoController.play();
-              sendEvent("PLAY",
-                  position:
-                      _videoController.value.position.inSeconds.toDouble());
-            } else {
-              _videoController.pause();
-              sendEvent("PAUSE");
-            }
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _bottomControls() {
+  Widget _controls() {
     return Positioned(
       bottom: 20,
       left: 0,
@@ -872,45 +340,19 @@ Widget _buildMainCameraLayout() {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _circleButton(
-            icon: isMuted ? Icons.mic_off : Icons.mic,
-            onTap: () {
+          IconButton(
+            icon: Icon(isMuted ? Icons.mic_off : Icons.mic,
+                color: Colors.white),
+            onPressed: () {
               setState(() => isMuted = !isMuted);
-              _engine?.muteLocalAudioStream(isMuted);
+              _engine.muteLocalAudioStream(isMuted);
             },
           ),
-          _circleButton(
-            icon: Icons.video_collection,
-            onTap: _showReactions,
-          ),
-          // ✅ SCREEN SHARE BUTTON
-          _circleButton(
-            icon: isScreenSharing ? Icons.stop_screen_share : Icons.screen_share,
-            onTap: _toggleScreenShare,
-          ),
-          _circleButton(
-            icon: Icons.call_end,
-            color: Colors.red,
-            onTap: () async {
-              await _engine?.leaveChannel();
-              if (mounted) Navigator.pop(context);
-            },
+          IconButton(
+            icon: const Icon(Icons.emoji_emotions, color: Colors.white),
+            onPressed: _showReactions,
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _circleButton({
-    required IconData icon,
-    required VoidCallback onTap,
-    Color color = Colors.white,
-  }) {
-    return CircleAvatar(
-      backgroundColor: Colors.black54,
-      child: IconButton(
-        icon: Icon(icon, color: color),
-        onPressed: onTap,
       ),
     );
   }
@@ -918,67 +360,58 @@ Widget _buildMainCameraLayout() {
   void _showReactions() {
     showModalBottomSheet(
       context: context,
-      builder: (_) {
-        return Container(
-          padding: const EdgeInsets.all(20),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _reactionButton("assets/reactions/chutimanthonglue-cartoon-1142.gif"),
-              _reactionButton("assets/reactions/tilixia-summer-clap-hands-6897.gif"),
-              _reactionButton("assets/reactions/tilixia-summer-sad-22096.gif"),
-              // Test button
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  print("🧪 TEST: Showing reaction locally");
-                  _addReaction("assets/reactions/chutimanthonglue-cartoon-1142.gif");
-                },
-                child: const Text("Test Local"),
-              ),
-            ],
-          ),
-        );
-      },
+      builder: (_) => Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _reactionBtn("assets/reactions/1.gif"),
+          _reactionBtn("assets/reactions/2.gif"),
+        ],
+      ),
     );
   }
 
-  Widget _reactionButton(String path) {
+  Widget _reactionBtn(String path) {
     return GestureDetector(
       onTap: () {
         Navigator.pop(context);
         _sendReaction(path);
       },
-      child: Image.asset(path, width: 120),
+      child: Image.asset(path, width: 100),
     );
   }
 
-  Widget _floatingReaction(_VideoReaction reaction) {
+  Widget _floatingReaction(_VideoReaction r) {
     return Positioned(
-      key: ValueKey(reaction.id),
+      left: r.x,
       bottom: 120,
-      left: reaction.startX,
       child: TweenAnimationBuilder(
-        tween: Tween<double>(begin: 0, end: 1),
+        tween: Tween(begin: 0.0, end: 1.0),
         duration: const Duration(seconds: 2),
-        builder: (context, double value, child) {
-          return Transform.translate(
-            offset: Offset(0, -200 * value),
-            child: Opacity(
-              opacity: 1 - value,
-              child: Image.asset(reaction.path, width: 50),
-            ),
+        builder: (_, v, __) {
+          return Opacity(
+            opacity: 1 - v,
+            child: Image.asset(r.path, width: 50),
           );
         },
       ),
     );
   }
+
+  @override
+  void dispose() {
+    _videoController.dispose();
+    socket.sink.close();
+    _engine.leaveChannel();
+    _engine.release();
+    super.dispose();
+  }
 }
 
+/// ================= MODEL =================
 class _VideoReaction {
   final String id;
   final String path;
-  final double startX;
+  final double x;
 
-  _VideoReaction(this.id, this.path, this.startX);
+  _VideoReaction(this.id, this.path, this.x);
 }
