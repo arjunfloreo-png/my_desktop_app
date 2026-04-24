@@ -12,7 +12,7 @@
 <!-- For Android 12 and above devices, the following permission is also required. -->
 <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <application
-        android:label="my_desktop_app"
+        android:label="Floreo"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

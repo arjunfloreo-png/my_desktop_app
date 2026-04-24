@@ -1,89 +1,39 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math';
 
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
+import 'package:floreo/role_selection_interface.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:video_player/video_player.dart';
 
-const appId = "9bbcfb22bb73429fa08643c4da2fcc0b";
+// 🔥 NEW IMPORTS
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
+
+const appId = "54bf8a5095374303aa14ff23c73bac0d";
 const token =
-    "007eJxTYNhxbMulxrbZqsE7c0Jl7+l2cG6tn9Hy7t/rDZVrL2y7oK+lwGCZlJSclmRklJRkbmxiZJmWaGBhZmKcbJKSaJSWnGyQ9FricWZDICOD9ZVpDIxQCOILM6TllJaUpBaFZaak5jsn5uQ4FhQwMAAAiAco+A==";
+    "007eJxTYLguVb0xuTNRxmmO7ffjgXVbVLik5u82lv8suL1WsNTK9poCg6lJUppFoqmBpamxuYmxgXFioqFJWpqRcbK5cVJiskHKpaDXmQ2BjAxLSp0ZGRkgEMTnZUhJzc0PT00qzk/OTi1hYAAA72ghqA==";
+const channel = "demoWebsocket";
 
-const channel = "flutterVideoCallApp";
+enum UserRole { therapist, client }
 
-const videoUrl =
-    "https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4";
-    enum UserRole { client, therapist }
-
-extension UserRoleX on UserRole {
-  bool get isTherapist => this == UserRole.therapist;
-}
-
-// ================= MAIN =================
 void main() {
-  runApp(const MaterialApp(
-    debugShowCheckedModeBanner: false,
-    home: RoleSelectionScreen(),
-  ));
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // 🔥 REQUIRED for media_kit
+  MediaKit.ensureInitialized();
+
+  runApp(
+    const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: RoleSelectionScreen(),
+    ),
+  );
 }
 
-/// ================= ROLE SELECTION =================
-class RoleSelectionScreen extends StatelessWidget {
-  const RoleSelectionScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text("Select Role",
-                style: TextStyle(color: Colors.white, fontSize: 24)),
-
-            const SizedBox(height: 30),
-
-            ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const MyApp(role: "therapist"),
-                  ),
-                );
-              },
-              child: const Text("Therapist"),
-            ),
-
-            const SizedBox(height: 20),
-
-            ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const MyApp(role: "client"),
-                  ),
-                );
-              },
-              child: const Text("Client"),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// ================= MAIN APP =================
 class MyApp extends StatefulWidget {
-  final String role;
-
-  const MyApp({super.key, required this.role});
+  MyApp({Key? key, this.selectedRole}) : super(key: key);
+  UserRole? selectedRole = UserRole.therapist;
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -91,181 +41,92 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   int? _remoteUid;
+  bool _localUserJoined = false;
   late RtcEngine _engine;
-
-  late WebSocketChannel socket;
-
-  late String role;
-  String sessionId = "session_123";
-  bool isSocketConnected = false;
-
-  late VideoPlayerController _videoController;
-  bool isVideoInitialized = false;
-  bool isPlaying = false;
 
   bool isMuted = false;
 
-  List<_VideoReaction> reactions = [];
+  // 🔥 VIDEO MODE
+  String? selectedVideoUrl;
+  bool isVideoMode = false;
+  bool showVideoLibrary = false;
 
-  @override
-  void initState() {
-    super.initState();
-    role = widget.role;
+  // 🔥 MEDIA KIT PLAYER
 
-    initAgora();
-    initVideo();
-  }
+//late final Player _player;
+//late final VideoController _videoController;
 
-  /// ================= VIDEO =================
-  Future<void> initVideo() async {
-    _videoController = VideoPlayerController.network(videoUrl);
-    await _videoController.initialize();
-    await _videoController.pause();
 
-    setState(() => isVideoInitialized = true);
-  }
 
-  /// ================= SOCKET =================
-  void connectSocket() {
-    socket = WebSocketChannel.connect(
-      Uri.parse('ws://192.168.29.75:3000'),
-    );
 
-    socket.sink.add(jsonEncode({
-      "type": "JOIN",
-      "role": role,
-      "sessionId": sessionId,
-    }));
+  final List<Map<String, String>> availableVideos = [
+    {
+      'title': 'Bee Video',
+      'url':
+          'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4',
+    },
+    {
+      'title': 'Butterfly Video',
+      'url':
+          'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4',
+    },
+    {
+      'title': 'Relaxation Video',
+      'url':
+          'https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4',
+    },
+  ];
+// For media_kit_video 0.0.4 ONLY
+late final Player _player;
+late VideoController _videoController;
 
-    socket.stream.listen((message) {
-      final data = jsonDecode(message);
-      handleSocketEvent(data);
-    });
-  }
+@override
+void initState() {
+  super.initState();
+  _player = Player();
+  _videoController = VideoController(_player);
+ //initVideoController();
+  initAgora();
+}
 
-  void handleSocketEvent(Map data) {
-    final type = data['type'];
+// Future<void> _initVideoController() async {
+//   _videoController =  VideoController(
+//     _player
+//   );
+//   //reate(_player.handle);
+//   setState(() {});
+// }
 
-    /// REACTIONS
-    if (type == "REACTION") {
-      _showReactionDelayed(
-        data['path'],
-        data['timestamp'],
-      );
-      return;
-    }
-
-    /// ONLY CLIENT SYNC VIDEO
-    if (role != "client") return;
-
-    final position = data['position'] ?? 0;
-    final timestamp = data['timestamp'] ?? 0;
-
-    final delay =
-        (DateTime.now().millisecondsSinceEpoch - timestamp) / 1000;
-
-    final correctedPosition = position + delay;
-
-    if (!isVideoInitialized) return;
-
-    if (type == "PLAY") {
-      _videoController.seekTo(
-        Duration(seconds: correctedPosition.toInt()),
-      );
-      _videoController.play();
-      setState(() => isPlaying = true);
-    }
-
-    if (type == "PAUSE") {
-      _videoController.pause();
-      setState(() => isPlaying = false);
-    }
-
-    if (type == "SEEK") {
-      _videoController.seekTo(Duration(seconds: position.toInt()));
-    }
-  }
-
-  void sendEvent(String type, {double position = 0}) {
-    socket.sink.add(jsonEncode({
-      "type": type,
-      "position": position,
-      "timestamp": DateTime.now().millisecondsSinceEpoch,
-    }));
-  }
-
-  /// ================= REACTIONS =================
-  void _sendReaction(String path) {
-    final ts = DateTime.now().millisecondsSinceEpoch;
-
-    socket.sink.add(jsonEncode({
-      "type": "REACTION",
-      "path": path,
-      "timestamp": ts,
-    }));
-
-    _showReactionDelayed(path, ts);
-  }
-
-  void _showReactionDelayed(String path, int ts) {
-    final delay = max(
-      0,
-      500 - (DateTime.now().millisecondsSinceEpoch - ts),
-    );
-
-    Future.delayed(Duration(milliseconds: delay), () {
-      if (mounted) _addReaction(path);
-    });
-  }
-
-  void _addReaction(String path) {
-    final random = Random();
-    final width = MediaQuery.of(context).size.width;
-
-    final reaction = _VideoReaction(
-      DateTime.now().microsecondsSinceEpoch.toString(),
-      path,
-      random.nextDouble() * (width - 60),
-    );
-
-    setState(() => reactions.add(reaction));
-
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() => reactions.removeWhere((r) => r.id == reaction.id));
-      }
-    });
-  }
-
-  /// ================= AGORA =================
   Future<void> initAgora() async {
     await [Permission.microphone, Permission.camera].request();
 
     _engine = createAgoraRtcEngine();
-
     await _engine.initialize(
       const RtcEngineContext(
         appId: appId,
-        channelProfile: ChannelProfileType.channelProfileCommunication,
+        channelProfile: ChannelProfileType.channelProfileLiveBroadcasting,
       ),
     );
-
-    await _engine.enableVideo();
 
     _engine.registerEventHandler(
       RtcEngineEventHandler(
-        onJoinChannelSuccess: (_, __) {
-          setState(() {});
+        onJoinChannelSuccess: (connection, elapsed) {
+          setState(() => _localUserJoined = true);
         },
-        onUserJoined: (_, uid, __) {
+        onUserJoined: (connection, uid, elapsed) {
           setState(() => _remoteUid = uid);
         },
-        onUserOffline: (_, __, ___) {
+        onUserOffline: (connection, uid, reason) {
           setState(() => _remoteUid = null);
+        },
+        onError: (error, msg) {
+          print("-----------------------------------------❌ Agora Error: $error - $msg----------------------------");
         },
       ),
     );
 
+    await _engine.setClientRole(role: ClientRoleType.clientRoleBroadcaster);
+    await _engine.enableVideo();
     await _engine.startPreview();
 
     await _engine.joinChannel(
@@ -274,65 +135,98 @@ class _MyAppState extends State<MyApp> {
       uid: 0,
       options: const ChannelMediaOptions(),
     );
-
-    connectSocket();
   }
 
-  /// ================= UI =================
+  Future<void> _disposeAgora() async {
+    await _engine.leaveChannel();
+    await _engine.release();
+  }
+
+  @override
+  void dispose() {
+  _player?.dispose();
+  _disposeAgora();
+    super.dispose();
+  }
+
+  // 🔥 VIDEO SELECT
+  void _selectVideo(String url, String title) async {
+    print("🎬 Selected: $title");
+
+    await _player?.open(Media(url));
+
+    setState(() {
+      selectedVideoUrl = url;
+      isVideoMode = true;
+      showVideoLibrary = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          if (isVideoInitialized)
-            Center(
-              child: AspectRatio(
-                aspectRatio: _videoController.value.aspectRatio,
-                child: VideoPlayer(_videoController),
-              ),
-            ),
+          Center(child: _remoteVideo()),
 
-          Positioned(
-            bottom: 100,
-            right: 40,
+          // LOCAL CAMERA
+          Align(
+            alignment: Alignment.bottomRight,
             child: SizedBox(
               width: 150,
-              height: 180,
-              child: _remoteView(),
+              height: 200,
+              child: _localUserJoined
+                  ? AgoraVideoView(
+                      controller: VideoViewController(
+                        rtcEngine: _engine,
+                        canvas: const VideoCanvas(uid: 0),
+                      ),
+                    )
+                  : const CircularProgressIndicator(),
             ),
           ),
 
-          ...reactions.map(_floatingReaction).toList(),
+          if (showVideoLibrary) _videoLibraryWindow(),
 
-          _controls(),
+          if (widget.selectedRole == UserRole.therapist) _bottomControls(),
         ],
       ),
     );
   }
 
-  Widget _remoteView() {
-    if (_remoteUid == null) {
-      return Center(
-        child: Text(
-          role == "client"
-              ? "Waiting for therapist..."
-              : "Waiting for client...",
-          style: const TextStyle(color: Colors.white),
+  // 🔥 REMOTE VIEW SWITCH
+  Widget _remoteVideo() {
+    // VIDEO MODE
+  if (isVideoMode && _videoController != null) {
+  return Center(
+    child: AspectRatio(
+      aspectRatio: 16 / 9,
+      child: Video(controller: _videoController!),
+    ),
+  );
+}
+
+    // NORMAL CALL
+    if (_remoteUid != null) {
+      return AgoraVideoView(
+        controller: VideoViewController.remote(
+          rtcEngine: _engine,
+          canvas: VideoCanvas(uid: _remoteUid),
+          connection: const RtcConnection(channelId: channel),
         ),
       );
     }
 
-    return AgoraVideoView(
-      controller: VideoViewController.remote(
-        rtcEngine: _engine,
-        canvas: VideoCanvas(uid: _remoteUid),
-        connection: const RtcConnection(channelId: channel),
-      ),
+    return Text(
+      widget.selectedRole == UserRole.therapist
+          ? "Waiting for client..."
+          : "Waiting for therapist...",
+      style: const TextStyle(color: Colors.white),
     );
   }
 
-  Widget _controls() {
+  Widget _bottomControls() {
     return Positioned(
       bottom: 20,
       left: 0,
@@ -340,78 +234,113 @@ class _MyAppState extends State<MyApp> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          IconButton(
-            icon: Icon(isMuted ? Icons.mic_off : Icons.mic,
-                color: Colors.white),
-            onPressed: () {
+          _circleButton(
+            icon: isMuted ? Icons.mic_off : Icons.mic,
+            onTap: () {
               setState(() => isMuted = !isMuted);
               _engine.muteLocalAudioStream(isMuted);
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.emoji_emotions, color: Colors.white),
-            onPressed: _showReactions,
+          _circleButton(
+            icon: Icons.video_library,
+            onTap: () {
+              setState(() {
+                showVideoLibrary = !showVideoLibrary;
+              });
+            },
+          ),
+          _circleButton(
+            icon: Icons.videocam,
+            onTap: () {
+              setState(() {
+                isVideoMode = false;
+                selectedVideoUrl = null;
+              });
+            },
+          ),
+          _circleButton(
+            icon: Icons.call_end,
+            color: Colors.red,
+            onTap: () async {
+              await _engine.leaveChannel();
+              if (mounted) Navigator.pop(context);
+            },
           ),
         ],
       ),
     );
   }
 
-  void _showReactions() {
-    showModalBottomSheet(
-      context: context,
-      builder: (_) => Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _reactionBtn("assets/reactions/1.gif"),
-          _reactionBtn("assets/reactions/2.gif"),
-        ],
+  Widget _circleButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    Color color = Colors.white,
+  }) {
+    return CircleAvatar(
+      backgroundColor: Colors.black54,
+      child: IconButton(
+        icon: Icon(icon, color: color),
+        onPressed: onTap,
       ),
     );
   }
 
-  Widget _reactionBtn(String path) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.pop(context);
-        _sendReaction(path);
-      },
-      child: Image.asset(path, width: 100),
-    );
-  }
-
-  Widget _floatingReaction(_VideoReaction r) {
+  // 🔥 VIDEO LIBRARY
+  Widget _videoLibraryWindow() {
     return Positioned(
-      left: r.x,
-      bottom: 120,
-      child: TweenAnimationBuilder(
-        tween: Tween(begin: 0.0, end: 1.0),
-        duration: const Duration(seconds: 2),
-        builder: (_, v, __) {
-          return Opacity(
-            opacity: 1 - v,
-            child: Image.asset(r.path, width: 50),
-          );
-        },
+      left: 20,
+      right: 20,
+      top: 100,
+      bottom: 100,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.black87,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: Text(
+                    "Select Video",
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white),
+                  onPressed: () => setState(() => showVideoLibrary = false),
+                ),
+              ],
+            ),
+            Expanded(
+              child: GridView.builder(
+                itemCount: availableVideos.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                ),
+                itemBuilder: (context, index) {
+                  final video = availableVideos[index];
+                  return GestureDetector(
+                    onTap: () => _selectVideo(video['url']!, video['title']!),
+                    child: Card(
+                      color: Colors.white10,
+                      child: Center(
+                        child: Text(
+                          video['title']!,
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
-
-  @override
-  void dispose() {
-    _videoController.dispose();
-    socket.sink.close();
-    _engine.leaveChannel();
-    _engine.release();
-    super.dispose();
-  }
-}
-
-/// ================= MODEL =================
-class _VideoReaction {
-  final String id;
-  final String path;
-  final double x;
-
-  _VideoReaction(this.id, this.path, this.x);
 }
