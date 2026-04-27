@@ -200,14 +200,14 @@ class _MyAppState extends State<MyApp> {
           // ── Main 3-column layout ────────────────────────────
           Column(
             children: [
-              Row(
-                children: [
-                  _liveBadge("Therapist"),
-                  Spacer(),
-                  _liveBadge("Client"),
-                  SizedBox(width: 16),
-                ],
-              ),
+              // Row(
+              //   children: [
+              //     _liveBadge("Therapist"),
+              //     Spacer(),
+              //     _liveBadge("Client"),
+              //     SizedBox(width: 16),
+              //   ],
+              // ),
               Expanded(
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -217,93 +217,93 @@ class _MyAppState extends State<MyApp> {
                     //    left:12  = gap from screen edge
                     //    right:8  = gap between therapist panel and center
                     //    top/bottom:12 = vertical breathing room
-                    Padding(
-                      padding: const EdgeInsets.only(
-                        left: 16,
-                        top: 12,
-                        bottom: 12,
-                        right: 8,
-                      ),
-                      child: SizedBox(
-                        width: 280,
-                        child: Column(
-                          children: [
-                            // camera fills available space
-                            Expanded(
-                              child: ClipRRect(
-                                //  rounded corners on camera panel
-                                borderRadius: BorderRadius.circular(12),
-                                child: _localUserJoined
-                                    ? Stack(
-                                        alignment: Alignment.bottomCenter,
-                                        children: [
-                                          AgoraVideoView(
-                                            controller: VideoViewController(
-                                              rtcEngine: _engine,
-                                              canvas: const VideoCanvas(uid: 0),
-                                            ),
-                                          ),
-                                          if (widget.selectedRole ==
-                                              UserRole.therapist)
-                                            Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.center,
-                                              children: [
-                                                _smallCircleButton(
-                                                  icon: isTherpistMuted
-                                                      ? Icons.mic_off
-                                                      : Icons.mic,
-                                                  onTap: () {
-                                                    setState(
-                                                      () => isTherpistMuted =
-                                                          !isTherpistMuted,
-                                                    );
-                                                    _engine
-                                                        .muteLocalAudioStream(
-                                                          isTherpistMuted,
-                                                        );
-                                                  },
-                                                ),
-                                                const SizedBox(width: 12),
-                                                _smallCircleButton(
-                                                  icon: isTherpistvideoMuted
-                                                      ? Icons.videocam_off
-                                                      : Icons.videocam,
-                                                  onTap: () {
-                                                    setState(
-                                                      () => isTherpistvideoMuted =
-                                                          !isTherpistvideoMuted,
-                                                    );
-                                                    _engine
-                                                        .muteLocalVideoStream(
-                                                          isTherpistvideoMuted,
-                                                        );
-                                                  },
-                                                ),
-                                              ],
-                                            ),
-                                        ],
-                                      )
-                                    : const Center(
-                                        child: SizedBox(
-                                          width: 24,
-                                          height: 24,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: Colors.white54,
-                                          ),
-                                        ),
-                                      ),
-                              ),
-                            ),
+                    // Padding(
+                    //   padding: const EdgeInsets.only(
+                    //     left: 16,
+                    //     top: 12,
+                    //     bottom: 12,
+                    //     right: 8,
+                    //   ),
+                    //   child: SizedBox(
+                    //     width: 280,
+                    //     child: Column(
+                    //       children: [
+                    //         // camera fills available space
+                    //         Expanded(
+                    //           child: ClipRRect(
+                    //             //  rounded corners on camera panel
+                    //             borderRadius: BorderRadius.circular(12),
+                    //             child: _localUserJoined
+                    //                 ? Stack(
+                    //                     alignment: Alignment.bottomCenter,
+                    //                     children: [
+                    //                       AgoraVideoView(
+                    //                         controller: VideoViewController(
+                    //                           rtcEngine: _engine,
+                    //                           canvas: const VideoCanvas(uid: 0),
+                    //                         ),
+                    //                       ),
+                    //                       if (widget.selectedRole ==
+                    //                           UserRole.therapist)
+                    //                         Row(
+                    //                           mainAxisAlignment:
+                    //                               MainAxisAlignment.center,
+                    //                           children: [
+                    //                             _smallCircleButton(
+                    //                               icon: isTherpistMuted
+                    //                                   ? Icons.mic_off
+                    //                                   : Icons.mic,
+                    //                               onTap: () {
+                    //                                 setState(
+                    //                                   () => isTherpistMuted =
+                    //                                       !isTherpistMuted,
+                    //                                 );
+                    //                                 _engine
+                    //                                     .muteLocalAudioStream(
+                    //                                       isTherpistMuted,
+                    //                                     );
+                    //                               },
+                    //                             ),
+                    //                             const SizedBox(width: 12),
+                    //                             _smallCircleButton(
+                    //                               icon: isTherpistvideoMuted
+                    //                                   ? Icons.videocam_off
+                    //                                   : Icons.videocam,
+                    //                               onTap: () {
+                    //                                 setState(
+                    //                                   () => isTherpistvideoMuted =
+                    //                                       !isTherpistvideoMuted,
+                    //                                 );
+                    //                                 _engine
+                    //                                     .muteLocalVideoStream(
+                    //                                       isTherpistvideoMuted,
+                    //                                     );
+                    //                               },
+                    //                             ),
+                    //                           ],
+                    //                         ),
+                    //                     ],
+                    //                   )
+                    //                 : const Center(
+                    //                     child: SizedBox(
+                    //                       width: 24,
+                    //                       height: 24,
+                    //                       child: CircularProgressIndicator(
+                    //                         strokeWidth: 2,
+                    //                         color: Colors.white54,
+                    //                       ),
+                    //                     ),
+                    //                   ),
+                    //           ),
+                    //         ),
 
-                            const SizedBox(height: 8),
+                    //         const SizedBox(height: 8),
 
-                            // mic + video toggle buttons below therapist camera
-                          ],
-                        ),
-                      ),
-                    ),
+                    //         // mic + video toggle buttons below therapist camera
+                    //       ],
+                    //     ),
+                    //   ),
+                    // ),
 
                     // ── CENTER: Video / placeholder + controls below ─
                     Expanded(
@@ -371,117 +371,117 @@ class _MyAppState extends State<MyApp> {
                     //    right:12  = gap from screen edge
                     //    left:8    = gap between center and client panel
                     //    top/bottom:12 = vertical breathing room
-                    Padding(
-                      padding: const EdgeInsets.only(
-                        left: 8,
-                        top: 12,
-                        bottom: 12,
-                        right: 12,
-                      ),
-                      child: SizedBox(
-                        width: 280,
-                        child: Column(
-                          children: [
-                            Expanded(
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: _remoteUid != null
-                                    ? Stack(
-                                        alignment: Alignment.bottomCenter,
-                                        children: [
-                                          AgoraVideoView(
-                                            controller:
-                                                VideoViewController.remote(
-                                                  rtcEngine: _engine,
-                                                  canvas: VideoCanvas(
-                                                    uid: _remoteUid,
-                                                  ),
-                                                  connection:
-                                                      const RtcConnection(
-                                                        channelId: channel,
-                                                      ),
-                                                ),
-                                          ),
-                                          if (widget.selectedRole ==
-                                              UserRole.client)
-                                            Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.center,
-                                              children: [
-                                                _smallCircleButton(
-                                                  icon: isClientMuted
-                                                      ? Icons.mic_off
-                                                      : Icons.mic,
-                                                  onTap: () {
-                                                    setState(
-                                                      () => isClientMuted =
-                                                          !isClientMuted,
-                                                    );
-                                                    _engine
-                                                        .muteLocalAudioStream(
-                                                          isClientMuted,
-                                                        );
-                                                  },
-                                                ),
-                                                const SizedBox(width: 12),
-                                                _smallCircleButton(
-                                                  icon: isClientvideoMuted
-                                                      ? Icons.videocam_off
-                                                      : Icons.videocam,
-                                                  onTap: () {
-                                                    setState(
-                                                      () => isClientvideoMuted =
-                                                          !isClientvideoMuted,
-                                                    );
-                                                    _engine
-                                                        .muteLocalVideoStream(
-                                                          isClientvideoMuted,
-                                                        );
-                                                  },
-                                                ),
-                                              ],
-                                            ),
-                                        ],
-                                      )
-                                    : Center(
-                                        child: Text(
-                                          widget.selectedRole ==
-                                                  UserRole.therapist
-                                              ? "Waiting for client..."
-                                              : "Waiting for therapist...",
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ),
-                              ),
-                            ),
+                    // Padding(
+                    //   padding: const EdgeInsets.only(
+                    //     left: 8,
+                    //     top: 12,
+                    //     bottom: 12,
+                    //     right: 12,
+                    //   ),
+                    //   child: SizedBox(
+                    //     width: 280,
+                    //     child: Column(
+                    //       children: [
+                    //         Expanded(
+                    //           child: ClipRRect(
+                    //             borderRadius: BorderRadius.circular(12),
+                    //             child: _remoteUid != null
+                    //                 ? Stack(
+                    //                     alignment: Alignment.bottomCenter,
+                    //                     children: [
+                    //                       AgoraVideoView(
+                    //                         controller:
+                    //                             VideoViewController.remote(
+                    //                               rtcEngine: _engine,
+                    //                               canvas: VideoCanvas(
+                    //                                 uid: _remoteUid,
+                    //                               ),
+                    //                               connection:
+                    //                                   const RtcConnection(
+                    //                                     channelId: channel,
+                    //                                   ),
+                    //                             ),
+                    //                       ),
+                    //                       if (widget.selectedRole ==
+                    //                           UserRole.client)
+                    //                         Row(
+                    //                           mainAxisAlignment:
+                    //                               MainAxisAlignment.center,
+                    //                           children: [
+                    //                             _smallCircleButton(
+                    //                               icon: isClientMuted
+                    //                                   ? Icons.mic_off
+                    //                                   : Icons.mic,
+                    //                               onTap: () {
+                    //                                 setState(
+                    //                                   () => isClientMuted =
+                    //                                       !isClientMuted,
+                    //                                 );
+                    //                                 _engine
+                    //                                     .muteLocalAudioStream(
+                    //                                       isClientMuted,
+                    //                                     );
+                    //                               },
+                    //                             ),
+                    //                             const SizedBox(width: 12),
+                    //                             _smallCircleButton(
+                    //                               icon: isClientvideoMuted
+                    //                                   ? Icons.videocam_off
+                    //                                   : Icons.videocam,
+                    //                               onTap: () {
+                    //                                 setState(
+                    //                                   () => isClientvideoMuted =
+                    //                                       !isClientvideoMuted,
+                    //                                 );
+                    //                                 _engine
+                    //                                     .muteLocalVideoStream(
+                    //                                       isClientvideoMuted,
+                    //                                     );
+                    //                               },
+                    //                             ),
+                    //                           ],
+                    //                         ),
+                    //                     ],
+                    //                   )
+                    //                 : Center(
+                    //                     child: Text(
+                    //                       widget.selectedRole ==
+                    //                               UserRole.therapist
+                    //                           ? "Waiting for client..."
+                    //                           : "Waiting for therapist...",
+                    //                       style: const TextStyle(
+                    //                         color: Colors.white,
+                    //                         fontSize: 12,
+                    //                       ),
+                    //                     ),
+                    //                   ),
+                    //           ),
+                    //         ),
 
-                            const SizedBox(height: 8),
+                    //         const SizedBox(height: 8),
 
-                            // end call button below client camera
-                            // if (widget.selectedRole == UserRole.therapist)
-                            //   Row(
-                            //     mainAxisAlignment: MainAxisAlignment.center,
-                            //     children: [
-                            //       _smallCircleButton(
-                            //         icon: Icons.call_end,
-                            //         color: Colors.red,
-                            //         onTap: () async {
-                            //           await _player.stop();
-                            //           await _engine.leaveChannel();
-                            //           if (mounted) Navigator.pop(context);
-                            //         },
-                            //       ),
-                            //     ],
-                            //   ),
+                    //         // end call button below client camera
+                    //         // if (widget.selectedRole == UserRole.therapist)
+                    //         //   Row(
+                    //         //     mainAxisAlignment: MainAxisAlignment.center,
+                    //         //     children: [
+                    //         //       _smallCircleButton(
+                    //         //         icon: Icons.call_end,
+                    //         //         color: Colors.red,
+                    //         //         onTap: () async {
+                    //         //           await _player.stop();
+                    //         //           await _engine.leaveChannel();
+                    //         //           if (mounted) Navigator.pop(context);
+                    //         //         },
+                    //         //       ),
+                    //         //     ],
+                    //         //   ),
 
-                            // const SizedBox(height: 8),
-                          ],
-                        ),
-                      ),
-                    ),
+                    //         // const SizedBox(height: 8),
+                    //       ],
+                    //     ),
+                    //   ),
+                    // ),
                   ],
                 ),
               ),
