@@ -10,12 +10,12 @@ import 'package:media_kit_video/media_kit_video.dart';
 
 const appId = "54bf8a5095374303aa14ff23c73bac0d";
 const token =
-    "007eJxTYMjOLd+p5HdVR8B2icrHD2uW2mms46zuaXrjedGErWXHw70KDKYmSWkWiaYGlqbG5ibGBsaJiYYmaWlGxsnmxkmJyQYp91++y2wIZGTQkn7DwsgAgSA+L0NKam5+eGpScX5ydmoJAwMAgWUjxg==";
+    "007eJxTYFiX1jbhT8iig1P2rrrP3/4jM1fAy9109o0X3b/exel4OMoqMJiaJKVZJJoaWJoam5sYGxgnJhqapKUZGSebGyclJhukdFZ/yGwIZGQInKLMyMgAgSA+L0NKam5+eGpScX5ydmoJAwMABGYkRw==";
 const channel = "demoWebsocket";
 
 enum UserRole { therapist, client }
 
-enum _ActionStyle { outline, soft, filled }
+enum _ActionStyle { filled, soft, outline, danger }
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -65,6 +65,10 @@ class _MyAppState extends State<MyApp> {
   bool showVideoLibrary = false;
   bool isVideoPlaying = false;
 
+  // ── true  → remote camera is in the big panel, video is in the small slot
+  // ── false → video is in the big panel, remote camera is in the small slot
+  bool _isSwapped = false;
+
   Duration _videoPosition = Duration.zero;
   Duration _videoDuration = Duration.zero;
   StreamSubscription? _positionSub;
@@ -72,35 +76,102 @@ class _MyAppState extends State<MyApp> {
 
   double _videoVolume = 1.0;
   bool _isVolumeMuted = false;
-  bool _showAllBadges = false; 
+  bool _showAllBadges = false;
 
   late final Player _player;
   late VideoController _videoController;
-
-  // Reward badges — now dynamic, can add more
+ 
   final List<RewardBadge> _badges = [
-    RewardBadge(label: 'Good Job',        emoji: '😊', bgColor: const Color(0xFFE53935), name: 'Name Here'),
-    RewardBadge(label: "You're A Star",   emoji: '⭐', bgColor: const Color(0xFF1565C0), name: 'Name Here'),
-    RewardBadge(label: 'Well Done',       emoji: '😎', bgColor: const Color(0xFF0D1B2A), name: 'Name Here'),
-    RewardBadge(label: 'Fantastic Effort',emoji: '🤣', bgColor: const Color(0xFFE3F2FD), name: 'Name Here'),
-    RewardBadge(label: 'Keep It Up',      emoji: '💪', bgColor: const Color(0xFF388E3C), name: 'Name Here'),
-    RewardBadge(label: 'Super Work',      emoji: '🏆', bgColor: const Color(0xFFF57F17), name: 'Name Here'),
-    RewardBadge(label: 'Amazing!',        emoji: '🎉', bgColor: const Color(0xFF6A1B9A), name: 'Name Here'),
-    RewardBadge(label: 'Brilliant',       emoji: '🌟', bgColor: const Color(0xFF00838F), name: 'Name Here'),
+    RewardBadge(
+      label: 'Good Job',
+      emoji: '😊',
+      bgColor: const Color(0xFFE53935),
+      name: 'Name Here',
+    ),
+    RewardBadge(
+      label: "You're A Star",
+      emoji: '⭐',
+      bgColor: const Color(0xFF1565C0),
+      name: 'Name Here',
+    ),
+    RewardBadge(
+      label: 'Well Done',
+      emoji: '😎',
+      bgColor: const Color(0xFF0D1B2A),
+      name: 'Name Here',
+    ),
+    RewardBadge(
+      label: 'Fantastic Effort',
+      emoji: '🤣',
+      bgColor: const Color(0xFFE3F2FD),
+      name: 'Name Here',
+    ),
+    RewardBadge(
+      label: 'Keep It Up',
+      emoji: '💪',
+      bgColor: const Color(0xFF388E3C),
+      name: 'Name Here',
+    ),
+    RewardBadge(
+      label: 'Super Work',
+      emoji: '🏆',
+      bgColor: const Color(0xFFF57F17),
+      name: 'Name Here',
+    ),
+    RewardBadge(
+      label: 'Amazing!',
+      emoji: '🎉',
+      bgColor: const Color(0xFF6A1B9A),
+      name: 'Name Here',
+    ),
+    RewardBadge(
+      label: 'Brilliant',
+      emoji: '🌟',
+      bgColor: const Color(0xFF00838F),
+      name: 'Name Here',
+    ),
   ];
 
-  // Preset emoji options for the add-badge dialog
   static const List<String> _emojiOptions = [
-    '😊','⭐','😎','🤣','💪','🏆','🎉','🌟',
-    '🥳','❤️','🔥','👏','🦋','🌈','🎯','🧠',
-    '🐣','🦄','🎀','🍀','🚀','💡','🎸','🌺',
+    '😊',
+    '⭐',
+    '😎',
+    '🤣',
+    '💪',
+    '🏆',
+    '🎉',
+    '🌟',
+    '🥳',
+    '❤️',
+    '🔥',
+    '👏',
+    '🦋',
+    '🌈',
+    '🎯',
+    '🧠',
+    '🐣',
+    '🦄',
+    '🎀',
+    '🍀',
+    '🚀',
+    '💡',
+    '🎸',
+    '🌺',
   ];
 
-  // Preset color options for the add-badge dialog
   static const List<Color> _colorOptions = [
-    Color(0xFFE53935), Color(0xFF1565C0), Color(0xFF0D1B2A), Color(0xFFE3F2FD),
-    Color(0xFF388E3C), Color(0xFFF57F17), Color(0xFF6A1B9A), Color(0xFF00838F),
-    Color(0xFFAD1457), Color(0xFF4E342E), Color(0xFF546E7A), Color(0xFFFDD835),
+    Color(0xFFE53935),
+    Color(0xFF1565C0),
+    Color(0xFF0D1B2A),
+    Color(0xFFE3F2FD),
+    Color(0xFF388E3C),
+    Color(0xFFF57F17),
+    Color(0xFF6A1B9A),
+    Color(0xFF00838F),
+    Color(0xFFAD1457),
+    Color(0xFF4E342E),
+    Color(0xFF546E7A),
+    Color(0xFFFDD835),
   ];
 
   void _showAddBadgeDialog() {
@@ -111,150 +182,196 @@ class _MyAppState extends State<MyApp> {
 
     showDialog(
       context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setDialogState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: const Text('Add New Badge', style: TextStyle(fontWeight: FontWeight.w700)),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Preview
-                    Center(
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Add New Badge',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: selectedColor,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          labelController.text.isEmpty
+                              ? 'Label'
+                              : labelController.text,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: selectedColor.computeLuminance() < 0.4
+                                ? Colors.white
+                                : Colors.black87,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text(
+                          selectedEmoji,
+                          style: const TextStyle(fontSize: 22),
+                        ),
+                        Text(
+                          nameController.text.isEmpty
+                              ? 'Name'
+                              : nameController.text,
+                          style: TextStyle(
+                            color: selectedColor.computeLuminance() < 0.4
+                                ? Colors.white70
+                                : Colors.black54,
+                            fontSize: 7,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Label',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: labelController,
+                  decoration: InputDecoration(
+                    hintText: 'e.g. Great Work!',
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  onChanged: (_) => setDialogState(() {}),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Name',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: nameController,
+                  decoration: InputDecoration(
+                    hintText: 'e.g. Alex',
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  onChanged: (_) => setDialogState(() {}),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Emoji',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _emojiOptions.map((e) {
+                    final isSel = e == selectedEmoji;
+                    return GestureDetector(
+                      onTap: () => setDialogState(() => selectedEmoji = e),
                       child: Container(
-                        width: 80, height: 80,
-                        decoration: BoxDecoration(color: selectedColor, shape: BoxShape.circle),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(labelController.text.isEmpty ? 'Label' : labelController.text,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: selectedColor.computeLuminance() < 0.4 ? Colors.white : Colors.black87,
-                                fontSize: 8, fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            Text(selectedEmoji, style: const TextStyle(fontSize: 22)),
-                            Text(nameController.text.isEmpty ? 'Name' : nameController.text,
-                              style: TextStyle(
-                                color: selectedColor.computeLuminance() < 0.4 ? Colors.white70 : Colors.black54,
-                                fontSize: 7,
-                              ),
-                            ),
-                          ],
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: isSel ? Colors.black12 : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                          border: isSel
+                              ? Border.all(color: Colors.black45)
+                              : null,
+                        ),
+                        child: Center(
+                          child: Text(e, style: const TextStyle(fontSize: 20)),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Label input
-                    const Text('Label', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                    const SizedBox(height: 4),
-                    TextField(
-                      controller: labelController,
-                      decoration: InputDecoration(
-                        hintText: 'e.g. Great Work!',
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      onChanged: (_) => setDialogState(() {}),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Name input
-                    const Text('Name', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                    const SizedBox(height: 4),
-                    TextField(
-                      controller: nameController,
-                      decoration: InputDecoration(
-                        hintText: 'e.g. Alex',
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      onChanged: (_) => setDialogState(() {}),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Emoji picker
-                    const Text('Emoji', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 8, runSpacing: 8,
-                      children: _emojiOptions.map((e) {
-                        final isSelected = e == selectedEmoji;
-                        return GestureDetector(
-                          onTap: () => setDialogState(() => selectedEmoji = e),
-                          child: Container(
-                            width: 36, height: 36,
-                            decoration: BoxDecoration(
-                              color: isSelected ? Colors.black12 : Colors.transparent,
-                              borderRadius: BorderRadius.circular(8),
-                              border: isSelected ? Border.all(color: Colors.black45) : null,
-                            ),
-                            child: Center(child: Text(e, style: const TextStyle(fontSize: 20))),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Color picker
-                    const Text('Color', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 8, runSpacing: 8,
-                      children: _colorOptions.map((c) {
-                        final isSelected = c == selectedColor;
-                        return GestureDetector(
-                          onTap: () => setDialogState(() => selectedColor = c),
-                          child: Container(
-                            width: 30, height: 30,
-                            decoration: BoxDecoration(
-                              color: c,
-                              shape: BoxShape.circle,
-                              border: isSelected
-                                  ? Border.all(color: Colors.black, width: 2.5)
-                                  : Border.all(color: Colors.black12),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ],
+                    );
+                  }).toList(),
                 ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Cancel'),
+                const SizedBox(height: 12),
+                const Text(
+                  'Color',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                 ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black87,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  onPressed: () {
-                    if (labelController.text.trim().isEmpty) return;
-                    setState(() {
-                      _badges.add(RewardBadge(
-                        label: labelController.text.trim(),
-                        emoji: selectedEmoji,
-                        bgColor: selectedColor,
-                        name: nameController.text.trim().isEmpty ? 'Name Here' : nameController.text.trim(),
-                      ));
-                    });
-                    Navigator.pop(ctx);
-                  },
-                  child: const Text('Add', style: TextStyle(color: Colors.white)),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _colorOptions.map((c) {
+                    final isSel = c == selectedColor;
+                    return GestureDetector(
+                      onTap: () => setDialogState(() => selectedColor = c),
+                      child: Container(
+                        width: 30,
+                        height: 30,
+                        decoration: BoxDecoration(
+                          color: c,
+                          shape: BoxShape.circle,
+                          border: isSel
+                              ? Border.all(color: Colors.black, width: 2.5)
+                              : Border.all(color: Colors.black12),
+                        ),
+                      ),
+                    );
+                  }).toList(),
                 ),
               ],
-            );
-          },
-        );
-      },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black87,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              onPressed: () {
+                if (labelController.text.trim().isEmpty) return;
+                setState(() {
+                  _badges.add(
+                    RewardBadge(
+                      label: labelController.text.trim(),
+                      emoji: selectedEmoji,
+                      bgColor: selectedColor,
+                      name: nameController.text.trim().isEmpty
+                          ? 'Name Here'
+                          : nameController.text.trim(),
+                    ),
+                  );
+                });
+                Navigator.pop(ctx);
+              },
+              child: const Text('Add', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -305,18 +422,13 @@ class _MyAppState extends State<MyApp> {
 
     _engine.registerEventHandler(
       RtcEngineEventHandler(
-        onJoinChannelSuccess: (connection, elapsed) {
-          setState(() => _localUserJoined = true);
-        },
-        onUserJoined: (connection, uid, elapsed) {
-          setState(() => _remoteUid = uid);
-        },
-        onUserOffline: (connection, uid, reason) {
-          setState(() => _remoteUid = null);
-        },
-        onError: (error, msg) {
-          debugPrint("❌ Agora Error: $error - $msg");
-        },
+        onJoinChannelSuccess: (connection, elapsed) =>
+            setState(() => _localUserJoined = true),
+        onUserJoined: (connection, uid, elapsed) =>
+            setState(() => _remoteUid = uid),
+        onUserOffline: (connection, uid, reason) =>
+            setState(() => _remoteUid = null),
+        onError: (error, msg) => debugPrint("❌ Agora Error: $error - $msg"),
       ),
     );
 
@@ -362,11 +474,79 @@ class _MyAppState extends State<MyApp> {
     return '$m:$s';
   }
 
+  // ── Remote camera widget (reused in both positions) ──────────
+  Widget _buildRemoteCamera({bool large = false}) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        _remoteUid != null
+            ? AgoraVideoView(
+                controller: VideoViewController.remote(
+                  rtcEngine: _engine,
+                  canvas: VideoCanvas(uid: _remoteUid),
+                  connection: const RtcConnection(channelId: channel),
+                ),
+              )
+            : Center(
+                child: Text(
+                  widget.selectedRole == UserRole.therapist
+                      ? "Waiting for client..."
+                      : "Waiting for therapist...",
+                  style: TextStyle(
+                    color: Colors.white54,
+                    fontSize: large ? 15 : 11,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+        // Role label
+        Positioned(
+          bottom: 6,
+          left: 8,
+          child: _livePill(
+            widget.selectedRole == UserRole.therapist ? "Client" : "Therapist",
+          ),
+        ),
+        // Double-tap hint — only shown in small position
+        if (!large)
+          Positioned(
+            top: 6,
+            left: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              decoration: BoxDecoration(
+                color: Colors.black38,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children:  [
+                  widget.selectedRole == UserRole.therapist ?    Icon(Icons.swap_horiz, color: Colors.white70, size: 12):SizedBox(),
+                  SizedBox(width: 3),
+                 widget.selectedRole == UserRole.therapist ?  Text(
+                    '2× swap',
+                    style: TextStyle(color: Colors.white70, fontSize: 9),
+                  ):SizedBox(),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  // ── Video panel widget (reused in both positions) ────────────
+  Widget _buildVideoPanel() {
+    return isVideoMode
+        ? Video(controller: _videoController, controls: NoVideoControls)
+        : _videoPlaceholder();
+  }
+
   // ── Main Build ───────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFE8F5F0), // mint-green background
+      backgroundColor: const Color(0xFFE8F5F0),
       body: Stack(
         children: [
           Padding(
@@ -374,107 +554,147 @@ class _MyAppState extends State<MyApp> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // ── LEFT+CENTER: Video area ────────────────────
                 Expanded(
                   child: Column(
                     children: [
-                      // ── Main content area (video + cameras) ──
                       Expanded(
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            // ── Main video panel ──────────────
+                            // ── LARGE main panel ──────────────────────────
+                            // Normal:  video player
+                            // Swapped: remote camera (fullscreen feel)
                             Expanded(
                               flex: 3,
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(20),
                                 child: Container(
-                                  color: Colors.white,
-                                  child: isVideoMode
-                                      ? Video(
-                                          controller: _videoController,
-                                          controls: NoVideoControls,
-                                        )
-                                      : _videoPlaceholder(),
+                                  color: Colors.black,
+                                  child:   widget.selectedRole == UserRole.therapist ? _isSwapped
+                                      ? _buildRemoteCamera(large: true)
+                                      : _buildVideoPanel(): _buildVideoPanel(),
                                 ),
                               ),
                             ),
 
                             const SizedBox(width: 10),
 
-                            // ── Therapist + Client cameras stacked ──
+                            // ── RIGHT camera column ───────────────────────
                             SizedBox(
                               width: 200,
                               child: Column(
                                 children: [
-                                  // Therapist camera
+                                  // TOP tile — always YOUR local feed
                                   Expanded(
                                     child: ClipRRect(
                                       borderRadius: BorderRadius.circular(16),
                                       child: Container(
                                         color: Colors.black,
                                         child: Stack(
+                                          fit: StackFit.expand,
                                           children: [
                                             _localUserJoined
                                                 ? AgoraVideoView(
                                                     controller:
                                                         VideoViewController(
-                                                      rtcEngine: _engine,
-                                                      canvas: const VideoCanvas(
-                                                          uid: 0),
-                                                    ),
+                                                          rtcEngine: _engine,
+                                                          canvas:
+                                                              const VideoCanvas(
+                                                                uid: 0,
+                                                              ),
+                                                        ),
                                                   )
                                                 : const Center(
                                                     child:
                                                         CircularProgressIndicator(
-                                                      color: Colors.white54,
-                                                      strokeWidth: 2,
-                                                    ),
+                                                          color: Colors.white54,
+                                                          strokeWidth: 2,
+                                                        ),
                                                   ),
-                                            // Therapist label
+                                            // Your role label
                                             Positioned(
                                               bottom: 6,
                                               left: 8,
-                                              child: _livePill("Therapist"),
+                                              child: _livePill(
+                                                widget.selectedRole ==
+                                                        UserRole.therapist
+                                                    ? "Therapist"
+                                                    : "Client",
+                                              ),
                                             ),
-                                            // Therapist controls
-                                            if (widget.selectedRole ==
-                                                UserRole.therapist)
-                                              Positioned(
-                                                top: 6,
-                                                right: 6,
-                                                child: Row(
-                                                  children: [
-                                                    _tinyIconBtn(
-                                                      icon: isTherpistMuted
-                                                          ? Icons.mic_off
-                                                          : Icons.mic,
-                                                      onTap: () {
-                                                        setState(() =>
-                                                            isTherpistMuted =
-                                                                !isTherpistMuted);
+                                            // Mic + video controls on YOUR tile
+                                            Positioned(
+                                              top: 6,
+                                              right: 6,
+                                              child: Row(
+                                                children: [
+                                                  _tinyIconBtn(
+                                                    icon:
+                                                        (widget.selectedRole ==
+                                                                UserRole
+                                                                    .therapist
+                                                            ? isTherpistMuted
+                                                            : isClientMuted)
+                                                        ? Icons.mic_off
+                                                        : Icons.mic,
+                                                    onTap: () {
+                                                      if (widget.selectedRole ==
+                                                          UserRole.therapist) {
+                                                        setState(
+                                                          () => isTherpistMuted =
+                                                              !isTherpistMuted,
+                                                        );
                                                         _engine
                                                             .muteLocalAudioStream(
-                                                                isTherpistMuted);
-                                                      },
-                                                    ),
-                                                    const SizedBox(width: 4),
-                                                    _tinyIconBtn(
-                                                      icon: isTherpistvideoMuted
-                                                          ? Icons.videocam_off
-                                                          : Icons.videocam,
-                                                      onTap: () {
-                                                        setState(() =>
-                                                            isTherpistvideoMuted =
-                                                                !isTherpistvideoMuted);
+                                                              isTherpistMuted,
+                                                            );
+                                                      } else {
+                                                        setState(
+                                                          () => isClientMuted =
+                                                              !isClientMuted,
+                                                        );
+                                                        _engine
+                                                            .muteLocalAudioStream(
+                                                              isClientMuted,
+                                                            );
+                                                      }
+                                                    },
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  _tinyIconBtn(
+                                                    icon:
+                                                        (widget.selectedRole ==
+                                                                UserRole
+                                                                    .therapist
+                                                            ? isTherpistvideoMuted
+                                                            : isClientvideoMuted)
+                                                        ? Icons.videocam_off
+                                                        : Icons.videocam,
+                                                    onTap: () {
+                                                      if (widget.selectedRole ==
+                                                          UserRole.therapist) {
+                                                        setState(
+                                                          () => isTherpistvideoMuted =
+                                                              !isTherpistvideoMuted,
+                                                        );
+                                                        _engine.muteLocalVideoStream(
+                                                          isTherpistvideoMuted,
+                                                        );
+                                                      } else {
+                                                        setState(
+                                                          () => isClientvideoMuted =
+                                                              !isClientvideoMuted,
+                                                        );
                                                         _engine
                                                             .muteLocalVideoStream(
-                                                                isTherpistvideoMuted);
-                                                      },
-                                                    ),
-                                                  ],
-                                                ),
+                                                              isClientvideoMuted,
+                                                            );
+                                                      }
+                                                    },
+                                                  ),
+                                                ],
                                               ),
+                                            ),
                                           ],
                                         ),
                                       ),
@@ -483,87 +703,23 @@ class _MyAppState extends State<MyApp> {
 
                                   const SizedBox(height: 8),
 
-                                  // Client camera
+                                  // BOTTOM tile — double-tap swaps this with the main panel
+                                  // Normal:  remote camera (small)
+                                  // Swapped: video (small)
                                   Expanded(
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(16),
-                                      child: Container(
-                                        color: Colors.black87,
-                                        child: Stack(
-                                          children: [
-                                            _remoteUid != null
-                                                ? AgoraVideoView(
-                                                    controller:
-                                                        VideoViewController
-                                                            .remote(
-                                                      rtcEngine: _engine,
-                                                      canvas: VideoCanvas(
-                                                          uid: _remoteUid),
-                                                      connection:
-                                                          const RtcConnection(
-                                                              channelId:
-                                                                  channel),
-                                                    ),
-                                                  )
-                                                : Center(
-                                                    child: Text(
-                                                      widget.selectedRole ==
-                                                              UserRole.therapist
-                                                          ? "Waiting for client..."
-                                                          : "Waiting for therapist...",
-                                                      style: const TextStyle(
-                                                        color: Colors.white54,
-                                                        fontSize: 11,
-                                                      ),
-                                                      textAlign:
-                                                          TextAlign.center,
-                                                    ),
-                                                  ),
-                                            // Client label
-                                            Positioned(
-                                              bottom: 6,
-                                              left: 8,
-                                              child: _livePill("Client"),
-                                            ),
-                                            // Client controls
-                                            if (widget.selectedRole ==
-                                                UserRole.client)
-                                              Positioned(
-                                                top: 6,
-                                                right: 6,
-                                                child: Row(
-                                                  children: [
-                                                    _tinyIconBtn(
-                                                      icon: isClientMuted
-                                                          ? Icons.mic_off
-                                                          : Icons.mic,
-                                                      onTap: () {
-                                                        setState(() =>
-                                                            isClientMuted =
-                                                                !isClientMuted);
-                                                        _engine
-                                                            .muteLocalAudioStream(
-                                                                isClientMuted);
-                                                      },
-                                                    ),
-                                                    const SizedBox(width: 4),
-                                                    _tinyIconBtn(
-                                                      icon: isClientvideoMuted
-                                                          ? Icons.videocam_off
-                                                          : Icons.videocam,
-                                                      onTap: () {
-                                                        setState(() =>
-                                                            isClientvideoMuted =
-                                                                !isClientvideoMuted);
-                                                        _engine
-                                                            .muteLocalVideoStream(
-                                                                isClientvideoMuted);
-                                                      },
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                          ],
+                                    child: GestureDetector(
+                                      onDoubleTap: () => setState(
+                                        () => _isSwapped = !_isSwapped,
+                                      ),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(16),
+                                        child: Container(
+                                          color: Colors.black87,
+                                          child:widget.selectedRole == UserRole.therapist ?  _isSwapped
+                                              ? _buildVideoPanel()
+                                              : _buildRemoteCamera(
+                                                  large: false,
+                                                ):_buildRemoteCamera() ,
                                         ),
                                       ),
                                     ),
@@ -577,82 +733,74 @@ class _MyAppState extends State<MyApp> {
 
                       const SizedBox(height: 10),
 
-                      // ── Bottom Controls ────────────────────
                       if (widget.selectedRole == UserRole.therapist)
-                        _bottomControlsBar(),
+                       widget.selectedRole == UserRole.therapist ?    _bottomControlsBar(): SizedBox(),
                     ],
                   ),
                 ),
 
                 const SizedBox(width: 10),
-
-                // ── RIGHT: Reward badges panel ─────────────
-                _rewardPanel(),
+                widget.selectedRole == UserRole.therapist
+                    ? _rewardPanel()
+                    : SizedBox(),
               ],
             ),
           ),
 
-          // ── Video library overlay ─────────────────────────
           if (showVideoLibrary) _videoLibraryWindow(),
         ],
       ),
     );
   }
 
-  // ── Video placeholder (no video selected) ───────────────────
+  // ── Video placeholder ────────────────────────────────────────
   Widget _videoPlaceholder() {
     return Container(
       color: const Color(0xFFE8F5F0),
       child: Center(
         child: GestureDetector(
           onTap: () => setState(() => showVideoLibrary = !showVideoLibrary),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 24, vertical: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
-                      blurRadius: 12,
-                    ),
-                  ],
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(30),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 12,
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 10,
-                      height: 10,
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    const Text(
-                      'Go LIVE',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF1A1A2E),
-                      ),
-                    ),
-                  ],
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: const BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 10),
+                const Text(
+                  'Go LIVE',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1A1A2E),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  // ── Live pill badge ──────────────────────────────────────────
+  // ── Live pill ────────────────────────────────────────────────
   Widget _livePill(String name) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -685,14 +833,14 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
-  // ── Tiny icon button (on camera panels) ─────────────────────
+  // ── Tiny icon button ─────────────────────────────────────────
   Widget _tinyIconBtn({required IconData icon, required VoidCallback onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: 28,
         height: 28,
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: Colors.black54,
           shape: BoxShape.circle,
         ),
@@ -707,9 +855,6 @@ class _MyAppState extends State<MyApp> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        // border: Border.all(
-        //   width: 4,
-        //   color: Color(0xff00bd74)),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -722,11 +867,9 @@ class _MyAppState extends State<MyApp> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // ── Timeline + Volume row ──────────────────────────
           if (isVideoMode) ...[
             Row(
               children: [
-                // Volume icon
                 GestureDetector(
                   onTap: () async {
                     final newMuted = !_isVolumeMuted;
@@ -737,15 +880,13 @@ class _MyAppState extends State<MyApp> {
                     _isVolumeMuted
                         ? Icons.volume_off
                         : _videoVolume < 0.4
-                            ? Icons.volume_down
-                            : Icons.volume_up,
-                    color: Color(0xff00bd74),
+                        ? Icons.volume_down
+                        : Icons.volume_up,
+                    color: const Color(0xff00bd74),
                     size: 22,
                   ),
                 ),
                 const SizedBox(width: 6),
-
-                // Volume slider
                 SizedBox(
                   width: 100,
                   child: _thinSlider(
@@ -760,21 +901,20 @@ class _MyAppState extends State<MyApp> {
                     },
                   ),
                 ),
-
                 const SizedBox(width: 10),
-
-                // Timeline
                 Expanded(
                   child: _thinSlider(
                     value: _videoPosition.inMilliseconds.toDouble().clamp(
-                          0,
-                          _videoDuration.inMilliseconds
-                              .toDouble()
-                              .clamp(1, double.infinity),
-                        ),
-                    max: _videoDuration.inMilliseconds
-                        .toDouble()
-                        .clamp(1, double.infinity),
+                      0,
+                      _videoDuration.inMilliseconds.toDouble().clamp(
+                        1,
+                        double.infinity,
+                      ),
+                    ),
+                    max: _videoDuration.inMilliseconds.toDouble().clamp(
+                      1,
+                      double.infinity,
+                    ),
                     onChanged: (v) async {
                       final seekTo = Duration(milliseconds: v.toInt());
                       await _player.seek(seekTo);
@@ -782,7 +922,6 @@ class _MyAppState extends State<MyApp> {
                     },
                   ),
                 ),
-
                 const SizedBox(width: 8),
                 Text(
                   '${_formatDuration(_videoPosition)}/${_formatDuration(_videoDuration)}',
@@ -796,31 +935,27 @@ class _MyAppState extends State<MyApp> {
             ),
             const SizedBox(height: 8),
           ],
-
-          // ── Action buttons row ─────────────────────────────
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-           
-
-              // Take Me Back
               _actionButton(
-                label: 'Take me back',
+                isButton: false,
+                label: 'TAKE ME BACK',
                 style: _ActionStyle.soft,
                 onTap: isVideoMode
                     ? () async {
-                        final target = Duration(
+                        final t = Duration(
                           milliseconds: (_videoPosition.inMilliseconds - 10000)
                               .clamp(0, _videoDuration.inMilliseconds),
                         );
-                        await _player.seek(target);
-                        setState(() => _videoPosition = target);
+                        await _player.seek(t);
+                        setState(() => _videoPosition = t);
                       }
                     : null,
               ),
-                 // Pose a Question (pause)
               _actionButton(
-                label: isVideoPlaying ? 'Pose a Question' : '  Asking...',
+                isButton: false,
+                label: isVideoPlaying ? 'POSE A QUESTION' : '  ASKING...',
                 style: _ActionStyle.outline,
                 onTap: isVideoMode
                     ? () async {
@@ -833,51 +968,36 @@ class _MyAppState extends State<MyApp> {
                       }
                     : null,
               ),
-
-              // Dive IN (forward / resume)
               _actionButton(
-                label: 'Dive IN',
+                isButton: true,
+                icon: Icons.call_end_sharp,
+                label: '',
+                style: _ActionStyle.danger,
+                onTap: _endSession,
+              ),
+              _actionButton(
+                isButton: false,
+                label: 'DIVE IN',
                 style: _ActionStyle.filled,
                 onTap: isVideoMode
                     ? () async {
-                        final target = Duration(
+                        final t = Duration(
                           milliseconds: (_videoPosition.inMilliseconds + 10000)
                               .clamp(0, _videoDuration.inMilliseconds),
                         );
-                        await _player.seek(target);
-                        setState(() => _videoPosition = target);
+                        await _player.seek(t);
+                        setState(() => _videoPosition = t);
                       }
                     : null,
               ),
-
-              // Let Me Share / video library
               _actionButton(
-                label: 'LET\nME\nSHARE',
+                isButton: false,
+                label: 'LET ME SHARE',
                 style: _ActionStyle.outline,
-                onTap: () => setState(() => showVideoLibrary = !showVideoLibrary),
-                small: true,
-              ),
-
-                 _actionButton(
-                label: 'End Session',
-                style: _ActionStyle.filled,
                 onTap: isVideoMode
-                    ? () async {
-                        final target = Duration(
-                          milliseconds: (_videoPosition.inMilliseconds + 10000)
-                              .clamp(0, _videoDuration.inMilliseconds),
-                        );
-                        await _player.seek(target);
-                        setState(() => _videoPosition = target);
-                      }
+                    ? () => setState(() => showVideoLibrary = !showVideoLibrary)
                     : null,
               ),
-                // _actionButton(
-                // label: 'End Session',
-                // style: _ActionStyle.outline,
-                // onTap: () => setState(() => showVideoLibrary = !showVideoLibrary),
-                // small: true,
-             // ),
             ],
           ),
         ],
@@ -896,35 +1016,38 @@ class _MyAppState extends State<MyApp> {
         trackHeight: 3,
         thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
         overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-        activeTrackColor: Color(0xff00bd74),
+        activeTrackColor: const Color(0xff00bd74),
         inactiveTrackColor: Colors.black12,
-        thumbColor: Color(0xffdaf9ed),
+        thumbColor: const Color(0xffdaf9ed),
         overlayColor: Colors.black12,
       ),
       child: Slider(value: value, min: 0, max: max, onChanged: onChanged),
     );
   }
 
-  // ── Action button styles ─────────────────────────────────────
+  // ── Action button ────────────────────────────────────────────
   Widget _actionButton({
+    required bool isButton,
+    IconData? icon,
     required String label,
     required _ActionStyle style,
     VoidCallback? onTap,
     bool small = false,
   }) {
     final isDisabled = onTap == null;
-
     BoxDecoration deco;
     TextStyle textStyle;
 
     switch (style) {
       case _ActionStyle.filled:
         deco = BoxDecoration(
-          color: isDisabled ? Colors.black26 : Color(0xFF00bd74),
+          color: isDisabled
+              ? const Color.fromARGB(255, 200, 238, 223)
+              : const Color(0xFF00bd74),
           borderRadius: BorderRadius.circular(30),
         );
         textStyle = const TextStyle(
-          color:Color(0xffdaf9ed) ,
+          color: Color(0xffdaf9ed),
           fontWeight: FontWeight.w700,
           fontSize: 15,
         );
@@ -932,29 +1055,39 @@ class _MyAppState extends State<MyApp> {
       case _ActionStyle.soft:
         deco = BoxDecoration(
           color: isDisabled
-              ? const Color(0xFF00bd74)
+              ? const Color.fromARGB(255, 200, 238, 223)
               : const Color(0xFF00bd74),
           borderRadius: BorderRadius.circular(30),
         );
-        textStyle = TextStyle(
-          color: isDisabled ? Color(0xffdaf9ed) : Color(0xffdaf9ed),
+        textStyle = const TextStyle(
+          color: Color(0xffdaf9ed),
           fontWeight: FontWeight.w600,
-          fontSize: 14,
+          fontSize: 15,
         );
         break;
       case _ActionStyle.outline:
         deco = BoxDecoration(
-          color: Color(0xFF00bd74),
-          border: Border.all(
-            color: isDisabled ? Colors.black12 : Color(0xffdaf9ed) ,
-            width: 1.5,
-          ),
+          color: isDisabled
+              ? const Color.fromARGB(255, 200, 238, 223)
+              : const Color(0xFF00bd74),
+          border: Border.all(color: const Color(0xffdaf9ed), width: 1.5),
           borderRadius: BorderRadius.circular(30),
         );
         textStyle = TextStyle(
-          color: isDisabled ? Colors.black38 : Color(0xffdaf9ed) ,
+          color: const Color(0xffdaf9ed),
           fontWeight: FontWeight.w600,
-          fontSize: small ? 11 : 14,
+          fontSize: small ? 11 : 15,
+        );
+        break;
+      case _ActionStyle.danger:
+        deco = BoxDecoration(
+          color: isDisabled ? Colors.red.shade200 : Colors.red,
+          shape: BoxShape.circle,
+        );
+        textStyle = const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+          fontSize: 16,
         );
         break;
     }
@@ -968,81 +1101,77 @@ class _MyAppState extends State<MyApp> {
           vertical: small ? 8 : 10,
         ),
         decoration: deco,
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: textStyle,
-        ),
+        child: isButton == true
+            ? Icon(icon, color: Colors.white)
+            : Text(label, textAlign: TextAlign.center, style: textStyle),
       ),
     );
   }
 
   // ── Reward badges panel ──────────────────────────────────────
- Widget _rewardPanel() {
-  final visibleBadges = _showAllBadges ? _badges : _badges.take(4).toList();
-
-  return Container(
-    width: 110,
-    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.06),
-          blurRadius: 10,
-        ),
-      ],
-    ),
-    child: Column(
-      children: [
-        // ── Scrollable badge list ──────────────────────
-        Expanded(
-          child: ListView.separated(
-            padding: EdgeInsets.only(top: 30),
-            itemCount: visibleBadges.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 40),
-            itemBuilder: (_, i) => _rewardBadge(visibleBadges[i]),
-          ),
-        ),
-        const SizedBox(height: 8),
-        // ── Load more / collapse button ────────────────
-        GestureDetector(
-          onTap: () => setState(() => _showAllBadges = !_showAllBadges),
-          child: Container(
-            width: 44,
-            height: 44,
+  Widget _rewardPanel() {
+    final visibleBadges = _showAllBadges ? _badges : _badges.take(4).toList();
+    return Container(
+      width: 110,
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 10),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+           width: double.infinity,
+           height: MediaQuery.sizeOf(context).height * 0.04,
             decoration: BoxDecoration(
-              color: Colors.black87,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+              borderRadius: BorderRadius.circular(25),
+              color:Color(0xFF00796B) 
             ),
-            child: Icon(
-              _showAllBadges ? Icons.expand_less : Icons.expand_more,
-              color: Colors.white,
-              size: 22,
+            child: Center(child: Text('REWARD BOX',style: TextStyle(color: Colors.white,fontSize: 10),))),
+          Expanded(
+            child: ListView.separated(
+              padding: const EdgeInsets.only(top: 30),
+              itemCount: visibleBadges.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 40),
+              itemBuilder: (_, i) => _rewardBadge(visibleBadges[i]),
             ),
           ),
-        ),
-      ],
-    ),
-  );
-}
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: () => setState(() => _showAllBadges = !_showAllBadges),
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colors.black87,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Icon(
+                _showAllBadges ? Icons.expand_less : Icons.expand_more,
+                color: Colors.white,
+                size: 22,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _rewardBadge(RewardBadge badge) {
     final isDark = badge.bgColor.computeLuminance() < 0.4;
-    final labelColor = isDark ? Colors.white : Colors.black87;
-    final nameColor = isDark ? Colors.white70 : Colors.black54;
-
     return GestureDetector(
       onTap: () {
-        // TODO: send reward to client
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Sent "${badge.label}" to ${badge.name}'),
@@ -1068,12 +1197,11 @@ class _MyAppState extends State<MyApp> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Curved label text at top
             Text(
               badge.label,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: labelColor,
+                color: isDark ? Colors.white : Colors.black87,
                 fontSize: 9,
                 fontWeight: FontWeight.w700,
                 height: 1.1,
@@ -1085,7 +1213,7 @@ class _MyAppState extends State<MyApp> {
             Text(
               badge.name,
               style: TextStyle(
-                color: nameColor,
+                color: isDark ? Colors.white70 : Colors.black54,
                 fontSize: 8,
               ),
             ),
@@ -1107,18 +1235,13 @@ class _MyAppState extends State<MyApp> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.15),
-              blurRadius: 20,
-            ),
+            BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 20),
           ],
         ),
         child: Column(
           children: [
-            // Header
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
                   const Text(
@@ -1142,8 +1265,7 @@ class _MyAppState extends State<MyApp> {
               child: GridView.builder(
                 padding: const EdgeInsets.all(12),
                 itemCount: availableVideos.length,
-                gridDelegate:
-                    const SliverGridDelegateWithFixedCrossAxisCount(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 2,
                   crossAxisSpacing: 10,
                   mainAxisSpacing: 10,
@@ -1152,8 +1274,7 @@ class _MyAppState extends State<MyApp> {
                 itemBuilder: (context, index) {
                   final video = availableVideos[index];
                   return GestureDetector(
-                    onTap: () =>
-                        _selectVideo(video['url']!, video['title']!),
+                    onTap: () => _selectVideo(video['url']!, video['title']!),
                     child: Container(
                       decoration: BoxDecoration(
                         color: const Color(0xFFE8F5F0),
@@ -1191,5 +1312,29 @@ class _MyAppState extends State<MyApp> {
         ),
       ),
     );
+  }
+
+  Future<void> _endSession() async {
+    try {
+      await _player.pause();
+      await _player.stop();
+      await _engine.leaveChannel();
+
+      setState(() {
+        isVideoMode = false;
+        selectedVideoUrl = null;
+        _remoteUid = null;
+        isVideoPlaying = false;
+        _isSwapped = false; // reset swap on session end
+      });
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
+        (route) => false,
+      );
+    } catch (e) {
+      debugPrint("End session error: $e");
+    }
   }
 }
