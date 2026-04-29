@@ -10,7 +10,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 
 const appId = "54bf8a5095374303aa14ff23c73bac0d";
 const token =
-    "007eJxTYFiX1jbhT8iig1P2rrrP3/4jM1fAy9109o0X3b/exel4OMoqMJiaJKVZJJoaWJoam5sYGxgnJhqapKUZGSebGyclJhukdFZ/yGwIZGQInKLMyMgAgSA+L0NKam5+eGpScX5ydmoJAwMABGYkRw==";
+    "007eJxTYCi4deZs4rQ/5yZeMerZ+PQpT8ks3x3O4QGqpRP7LjkqMFQoMJiaJKVZJJoaWJoam5sYGxgnJhqapKUZGSebGyclJhukaF38mNkQyMiwOHEDMyMDBIL4vAwpqbn54alJxfnJ2aklDAwAFEwkrQ==";
 const channel = "demoWebsocket";
 
 enum UserRole { therapist, client }
@@ -80,7 +80,7 @@ class _MyAppState extends State<MyApp> {
 
   late final Player _player;
   late VideoController _videoController;
- 
+
   final List<RewardBadge> _badges = [
     RewardBadge(
       label: 'Good Job',
@@ -377,20 +377,32 @@ class _MyAppState extends State<MyApp> {
 
   final List<Map<String, String>> availableVideos = [
     {
-      'title': 'Bee Video',
+      'title': 'Walk  Video',
       'url':
-          'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4',
+          'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/walk_animation.mp4'
     },
     {
-      'title': 'Butterfly Video',
+      'title': 'Stomp Video',
       'url':
-          'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4',
+          'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/stomp_animation.mp4'
     },
     {
-      'title': 'Relaxation Video',
-      'url':
-          'https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4',
+      'title': 'Stand Video',
+      'url': "https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/stand_animation.mp4"
     },
+
+    {
+      'title' : 'Fly Video',
+      'url': 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/fly_animation.mp4'
+    },
+    {
+      'title': 'Dance Video',
+      'url': 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/dance_animation.mp4'
+    },
+    {
+      'title': 'Climb Video',
+      'url' : 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/climb_animation.mp4'
+    }
   ];
 
   @override
@@ -476,69 +488,146 @@ class _MyAppState extends State<MyApp> {
 
   // ── Remote camera widget (reused in both positions) ──────────
   Widget _buildRemoteCamera({bool large = false}) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        _remoteUid != null
-            ? AgoraVideoView(
-                controller: VideoViewController.remote(
-                  rtcEngine: _engine,
-                  canvas: VideoCanvas(uid: _remoteUid),
-                  connection: const RtcConnection(channelId: channel),
-                ),
-              )
-            : Center(
-                child: Text(
-                  widget.selectedRole == UserRole.therapist
-                      ? "Waiting for client..."
-                      : "Waiting for therapist...",
-                  style: TextStyle(
-                    color: Colors.white54,
-                    fontSize: large ? 15 : 11,
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black87,
+
+        border: Border.all(color: Color(0xff00bd74)),
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          _remoteUid != null
+              ? AgoraVideoView(
+                  controller: VideoViewController.remote(
+                    rtcEngine: _engine,
+                    canvas: VideoCanvas(uid: _remoteUid),
+                    connection: const RtcConnection(channelId: channel),
                   ),
-                  textAlign: TextAlign.center,
+                )
+              : Center(
+                  child: Text(
+                    widget.selectedRole == UserRole.therapist
+                        ? "Waiting for client..."
+                        : "Waiting for therapist...",
+                    style: TextStyle(
+                      color: Colors.white54,
+                      fontSize: large ? 15 : 11,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
-              ),
-        // Role label
-        Positioned(
-          bottom: 6,
-          left: 8,
-          child: _livePill(
-            widget.selectedRole == UserRole.therapist ? "Client" : "Therapist",
-          ),
-        ),
-        // Double-tap hint — only shown in small position
-        if (!large)
+          // Role label
           Positioned(
-            top: 6,
+            bottom: 6,
             left: 8,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-              decoration: BoxDecoration(
-                color: Colors.black38,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children:  [
-                  widget.selectedRole == UserRole.therapist ?    Icon(Icons.swap_horiz, color: Colors.white70, size: 12):SizedBox(),
-                  SizedBox(width: 3),
-                 widget.selectedRole == UserRole.therapist ?  Text(
-                    '2× swap',
-                    style: TextStyle(color: Colors.white70, fontSize: 9),
-                  ):SizedBox(),
-                ],
-              ),
+            child: _livePill(
+              widget.selectedRole == UserRole.therapist
+                  ? "Client"
+                  : "Therapist",
             ),
           ),
-      ],
+
+          // Mic + video controls on YOUR tile
+          Positioned(
+            top: 6,
+            right: 6,
+            child: Row(
+              children: [
+                _tinyIconBtn(
+                  icon:
+                      (widget.selectedRole == UserRole.therapist
+                          ? isClientMuted
+                          : isTherpistMuted)
+                      ? Icons.mic_off
+                      : Icons.mic,
+                  onTap: () {
+                    if (widget.selectedRole == UserRole.therapist) {
+                      setState(() => isTherpistMuted = !isTherpistMuted);
+                      _engine.muteLocalAudioStream(isTherpistMuted);
+                    } else {
+                      setState(() => isClientMuted = !isClientMuted);
+                      _engine.muteLocalAudioStream(isClientMuted);
+                    }
+                  },
+                ),
+                const SizedBox(width: 4),
+                _tinyIconBtn(
+                  icon:
+                      (widget.selectedRole == UserRole.therapist
+                          ? isTherpistvideoMuted
+                          : isClientvideoMuted)
+                      ? Icons.videocam_off
+                      : Icons.videocam,
+                  onTap: () {
+                    if (widget.selectedRole == UserRole.therapist) {
+                      setState(
+                        () => isTherpistvideoMuted = !isTherpistvideoMuted,
+                      );
+                      _engine.muteLocalVideoStream(isTherpistvideoMuted);
+                    } else {
+                      setState(() => isClientvideoMuted = !isClientvideoMuted);
+                      _engine.muteLocalVideoStream(isClientvideoMuted);
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          // Double-tap hint — only shown in small position
+          if (!large)
+            Positioned(
+              top: 6,
+              left: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.black38,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    widget.selectedRole == UserRole.therapist
+                        ? Icon(
+                            Icons.swap_horiz,
+                            color: Colors.white70,
+                            size: 12,
+                          )
+                        : SizedBox(),
+                    SizedBox(width: 3),
+                    widget.selectedRole == UserRole.therapist
+                        ? Text(
+                            '2× swap',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 9,
+                            ),
+                          )
+                        : SizedBox(),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
   // ── Video panel widget (reused in both positions) ────────────
   Widget _buildVideoPanel() {
     return isVideoMode
-        ? Video(controller: _videoController, controls: NoVideoControls)
+        ? Container(
+            decoration: BoxDecoration(
+              color: Colors.black87,
+
+              border: Border.all(color: Color(0xff00bd74)),
+            ),
+            child: Video(
+              controller: _videoController,
+              controls: NoVideoControls,
+            ),
+          )
         : _videoPlaceholder();
   }
 
@@ -569,10 +658,19 @@ class _MyAppState extends State<MyApp> {
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(20),
                                 child: Container(
-                                  color: Colors.black,
-                                  child:   widget.selectedRole == UserRole.therapist ? _isSwapped
-                                      ? _buildRemoteCamera(large: true)
-                                      : _buildVideoPanel(): _buildVideoPanel(),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black87,
+
+                                    border: Border.all(
+                                      color: Color(0xff00bd74,),
+                                    ),
+                                  ),
+                                  child:
+                                      widget.selectedRole == UserRole.therapist
+                                      ? _isSwapped
+                                            ? _buildVideoPanel()
+                                            : _buildRemoteCamera(large: false)
+                                      : _buildRemoteCamera(),
                                 ),
                               ),
                             ),
@@ -589,7 +687,13 @@ class _MyAppState extends State<MyApp> {
                                     child: ClipRRect(
                                       borderRadius: BorderRadius.circular(16),
                                       child: Container(
-                                        color: Colors.black,
+                                        decoration: BoxDecoration(
+                                          color: Colors.black,
+                                          border: Border.all(
+                                            color: Color(0xff00bd74),
+                                          ),
+                                        ),
+
                                         child: Stack(
                                           fit: StackFit.expand,
                                           children: [
@@ -714,12 +818,22 @@ class _MyAppState extends State<MyApp> {
                                       child: ClipRRect(
                                         borderRadius: BorderRadius.circular(16),
                                         child: Container(
-                                          color: Colors.black87,
-                                          child:widget.selectedRole == UserRole.therapist ?  _isSwapped
-                                              ? _buildVideoPanel()
-                                              : _buildRemoteCamera(
-                                                  large: false,
-                                                ):_buildRemoteCamera() ,
+                                          decoration: BoxDecoration(
+                                            color: Colors.black87,
+
+                                            border: Border.all(
+                                              color: Color(0xff00bd74),
+                                            ),
+                                          ),
+                                          child:
+                                              widget.selectedRole ==
+                                                  UserRole.therapist
+                                              ? _isSwapped
+                                                    ? _buildRemoteCamera(
+                                                        large: true,
+                                                      )
+                                                    : _buildVideoPanel()
+                                              : _buildVideoPanel(),
                                         ),
                                       ),
                                     ),
@@ -734,7 +848,9 @@ class _MyAppState extends State<MyApp> {
                       const SizedBox(height: 10),
 
                       if (widget.selectedRole == UserRole.therapist)
-                       widget.selectedRole == UserRole.therapist ?    _bottomControlsBar(): SizedBox(),
+                        widget.selectedRole == UserRole.therapist
+                            ? _bottomControlsBar()
+                            : SizedBox(),
                     ],
                   ),
                 ),
@@ -764,7 +880,9 @@ class _MyAppState extends State<MyApp> {
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             decoration: BoxDecoration(
               color: Colors.white,
+
               borderRadius: BorderRadius.circular(30),
+
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.08),
@@ -854,6 +972,7 @@ class _MyAppState extends State<MyApp> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
+        border: Border.all(color: Color(0xff00bd74)),
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
@@ -1041,6 +1160,10 @@ class _MyAppState extends State<MyApp> {
     switch (style) {
       case _ActionStyle.filled:
         deco = BoxDecoration(
+          border:Border.all(
+            width: 4,
+            color:isDisabled? const Color.fromARGB(255, 200, 238, 223): Color(0xff005735)
+          ),
           color: isDisabled
               ? const Color.fromARGB(255, 200, 238, 223)
               : const Color(0xFF00bd74),
@@ -1054,6 +1177,10 @@ class _MyAppState extends State<MyApp> {
         break;
       case _ActionStyle.soft:
         deco = BoxDecoration(
+          border: Border.all(color:
+          isDisabled? const Color.fromARGB(255, 200, 238, 223):
+          const Color(0xff005735), width: 4),
+
           color: isDisabled
               ? const Color.fromARGB(255, 200, 238, 223)
               : const Color(0xFF00bd74),
@@ -1067,10 +1194,13 @@ class _MyAppState extends State<MyApp> {
         break;
       case _ActionStyle.outline:
         deco = BoxDecoration(
+          
           color: isDisabled
               ? const Color.fromARGB(255, 200, 238, 223)
               : const Color(0xFF00bd74),
-          border: Border.all(color: const Color(0xffdaf9ed), width: 1.5),
+          border: Border.all(color: 
+          isDisabled? const Color.fromARGB(255, 200, 238, 223):
+          const Color(0xff005735), width: 4),
           borderRadius: BorderRadius.circular(30),
         );
         textStyle = TextStyle(
@@ -1081,6 +1211,12 @@ class _MyAppState extends State<MyApp> {
         break;
       case _ActionStyle.danger:
         deco = BoxDecoration(
+              border:Border.all(
+            width: 4,
+            color:
+            isDisabled? const Color.fromARGB(255, 200, 238, 223):
+             Color(0xff005735)
+          ),
           color: isDisabled ? Colors.red.shade200 : Colors.red,
           shape: BoxShape.circle,
         );
@@ -1115,6 +1251,7 @@ class _MyAppState extends State<MyApp> {
       width: 110,
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
       decoration: BoxDecoration(
+        border: Border.all(color: Color(0xff00bd74)),
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
@@ -1124,13 +1261,19 @@ class _MyAppState extends State<MyApp> {
       child: Column(
         children: [
           Container(
-           width: double.infinity,
-           height: MediaQuery.sizeOf(context).height * 0.04,
+            width: double.infinity,
+            height: MediaQuery.sizeOf(context).height * 0.04,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(25),
-              color:Color(0xFF00796B) 
+              color: Color(0xFF00796B),
             ),
-            child: Center(child: Text('REWARD BOX',style: TextStyle(color: Colors.white,fontSize: 10),))),
+            child: Center(
+              child: Text(
+                'REWARD BOX',
+                style: TextStyle(color: Colors.white, fontSize: 10),
+              ),
+            ),
+          ),
           Expanded(
             child: ListView.separated(
               padding: const EdgeInsets.only(top: 30),
@@ -1337,4 +1480,35 @@ class _MyAppState extends State<MyApp> {
       debugPrint("End session error: $e");
     }
   }
+
+  
+//   Widget _floatingReaction(_VideoReaction reaction) {
+//     return Positioned(
+//       key: ValueKey(reaction.id),
+//       bottom: 120,
+//       left: reaction.startX,
+//       child: TweenAnimationBuilder(
+//         tween: Tween<double>(begin: 0, end: 1),
+//         duration: const Duration(seconds: 2),
+//         builder: (context, double value, child) {
+//           return Transform.translate(
+//             offset: Offset(0, -200 * value),
+//             child: Opacity(
+//               opacity: 1 - value,
+//               child: Image.asset(reaction.path, width: 50),
+//             ),
+//           );
+//         },
+//       ),
+//     );
+//   }
+// }
+
+// class _VideoReaction {
+//   final String id;
+//   final String path;
+//   final double startX;
+
+//   _VideoReaction(this.id, this.path, this.startX);
+// }
 }
