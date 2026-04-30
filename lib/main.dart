@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:floreo/role_selection_interface.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'package:media_kit/media_kit.dart';
@@ -10,7 +11,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 
 const appId = "54bf8a5095374303aa14ff23c73bac0d";
 const token =
-    "007eJxTYCi4deZs4rQ/5yZeMerZ+PQpT8ks3x3O4QGqpRP7LjkqMFQoMJiaJKVZJJoaWJoam5sYGxgnJhqapKUZGSebGyclJhukaF38mNkQyMiwOHEDMyMDBIL4vAwpqbn54alJxfnJ2aklDAwAFEwkrQ==";
+    "007eJxTYFBn2h12zpOp8Zz/mpl/OFZJndrwKZalTqfg2tmT/VcE+CIVGExNktIsEk0NLE2NzU2MDYwTEw1N0tKMjJPNjZMSkw1SJNQ+ZzYEMjJYnu1jZWSAQBCflyElNTc/PDWpOD85O7WEgQEAOsgiUA==";
 const channel = "demoWebsocket";
 
 enum UserRole { therapist, client }
@@ -24,6 +25,8 @@ void main() {
     const MaterialApp(
       debugShowCheckedModeBanner: false,
       home: RoleSelectionScreen(),
+
+      //ShortcutPopupExample()
     ),
   );
 }
@@ -379,30 +382,34 @@ class _MyAppState extends State<MyApp> {
     {
       'title': 'Walk  Video',
       'url':
-          'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/walk_animation.mp4'
+          'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/walk_animation.mp4',
     },
     {
       'title': 'Stomp Video',
       'url':
-          'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/stomp_animation.mp4'
+          'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/stomp_animation.mp4',
     },
     {
       'title': 'Stand Video',
-      'url': "https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/stand_animation.mp4"
+      'url':
+          "https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/stand_animation.mp4",
     },
 
     {
-      'title' : 'Fly Video',
-      'url': 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/fly_animation.mp4'
+      'title': 'Fly Video',
+      'url':
+          'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/fly_animation.mp4',
     },
     {
       'title': 'Dance Video',
-      'url': 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/dance_animation.mp4'
+      'url':
+          'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/dance_animation.mp4',
     },
     {
       'title': 'Climb Video',
-      'url' : 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/climb_animation.mp4'
-    }
+      'url':
+          'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/climb_animation.mp4',
+    },
   ];
 
   @override
@@ -634,237 +641,310 @@ class _MyAppState extends State<MyApp> {
   // ── Main Build ───────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFE8F5F0),
-      body: Stack(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // ── LARGE main panel ──────────────────────────
-                            // Normal:  video player
-                            // Swapped: remote camera (fullscreen feel)
-                            Expanded(
-                              flex: 3,
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(20),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.black87,
+    return CallbackShortcuts(
+      bindings: {
+        LogicalKeySet(LogicalKeyboardKey.keyJ): ?isVideoMode
+            ? () async {
+                final t = Duration(
+                  milliseconds: (_videoPosition.inMilliseconds - 10000).clamp(
+                    0,
+                    _videoDuration.inMilliseconds,
+                  ),
+                );
+                await _player.seek(t);
+                setState(() => _videoPosition = t);
+              }
+            : null,
 
-                                    border: Border.all(
-                                      color: Color(0xff00bd74,),
+        LogicalKeySet(LogicalKeyboardKey.space): ?isVideoMode
+            ? () async {
+                if (isVideoPlaying) {
+                  await _player.pause();
+                } else {
+                  await _player.play();
+                }
+                setState(() => isVideoPlaying = !isVideoPlaying);
+              }
+            : null,
+
+        LogicalKeySet(LogicalKeyboardKey.alt,LogicalKeyboardKey.f4):
+            _endSession,
+
+        LogicalKeySet(LogicalKeyboardKey.keyL): ?isVideoMode
+            ? () async {
+                final t = Duration(
+                  milliseconds: (_videoPosition.inMilliseconds + 10000).clamp(
+                    0,
+                    _videoDuration.inMilliseconds,
+                  ),
+                );
+                await _player.seek(t);
+                setState(() => _videoPosition = t);
+              }
+            : null,
+
+        LogicalKeySet(LogicalKeyboardKey.keyM): ?isVideoMode
+            ? () => setState(() => showVideoLibrary = !showVideoLibrary)
+            : null,
+        LogicalKeySet(LogicalKeyboardKey.keyG): () {
+          setState(() => showVideoLibrary = !showVideoLibrary);
+        },
+
+        LogicalKeySet(LogicalKeyboardKey.keyS): () {
+          setState(() => _isSwapped = !_isSwapped);
+        },
+
+        /*
+ setState(() => showVideoLibrary = !showVideoLibrary)
+                    */
+      },
+      child: Focus(
+        autofocus: true,
+        child: Scaffold(
+          backgroundColor: const Color(0xFFE8F5F0),
+          body: Stack(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                // ── LARGE main panel ──────────────────────────
+                                // Normal:  video player
+                                // Swapped: remote camera (fullscreen feel)
+                                Expanded(
+                                  flex: 3,
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(20),
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.black87,
+
+                                        border: Border.all(
+                                          color: Color(0xff00bd74),
+                                        ),
+                                      ),
+                                      child:
+                                          widget.selectedRole ==
+                                              UserRole.therapist
+                                          ? _isSwapped
+                                                ? _buildVideoPanel()
+                                                : _buildRemoteCamera(
+                                                    large: false,
+                                                  )
+                                          : _buildRemoteCamera(),
                                     ),
                                   ),
-                                  child:
-                                      widget.selectedRole == UserRole.therapist
-                                      ? _isSwapped
-                                            ? _buildVideoPanel()
-                                            : _buildRemoteCamera(large: false)
-                                      : _buildRemoteCamera(),
                                 ),
-                              ),
-                            ),
 
-                            const SizedBox(width: 10),
+                                const SizedBox(width: 10),
 
-                            // ── RIGHT camera column ───────────────────────
-                            SizedBox(
-                              width: 200,
-                              child: Column(
-                                children: [
-                                  // TOP tile — always YOUR local feed
-                                  Expanded(
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(16),
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          color: Colors.black,
-                                          border: Border.all(
-                                            color: Color(0xff00bd74),
+                                // ── RIGHT camera column ───────────────────────
+                                SizedBox(
+                                  width: 200,
+                                  child: Column(
+                                    children: [
+                                      // TOP tile — always YOUR local feed
+                                      Expanded(
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(
+                                            16,
                                           ),
-                                        ),
-
-                                        child: Stack(
-                                          fit: StackFit.expand,
-                                          children: [
-                                            _localUserJoined
-                                                ? AgoraVideoView(
-                                                    controller:
-                                                        VideoViewController(
-                                                          rtcEngine: _engine,
-                                                          canvas:
-                                                              const VideoCanvas(
-                                                                uid: 0,
-                                                              ),
-                                                        ),
-                                                  )
-                                                : const Center(
-                                                    child:
-                                                        CircularProgressIndicator(
-                                                          color: Colors.white54,
-                                                          strokeWidth: 2,
-                                                        ),
-                                                  ),
-                                            // Your role label
-                                            Positioned(
-                                              bottom: 6,
-                                              left: 8,
-                                              child: _livePill(
-                                                widget.selectedRole ==
-                                                        UserRole.therapist
-                                                    ? "Therapist"
-                                                    : "Client",
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: Colors.black,
+                                              border: Border.all(
+                                                color: Color(0xff00bd74),
                                               ),
                                             ),
-                                            // Mic + video controls on YOUR tile
-                                            Positioned(
-                                              top: 6,
-                                              right: 6,
-                                              child: Row(
-                                                children: [
-                                                  _tinyIconBtn(
-                                                    icon:
-                                                        (widget.selectedRole ==
-                                                                UserRole
-                                                                    .therapist
-                                                            ? isTherpistMuted
-                                                            : isClientMuted)
-                                                        ? Icons.mic_off
-                                                        : Icons.mic,
-                                                    onTap: () {
-                                                      if (widget.selectedRole ==
-                                                          UserRole.therapist) {
-                                                        setState(
-                                                          () => isTherpistMuted =
-                                                              !isTherpistMuted,
-                                                        );
-                                                        _engine
-                                                            .muteLocalAudioStream(
-                                                              isTherpistMuted,
-                                                            );
-                                                      } else {
-                                                        setState(
-                                                          () => isClientMuted =
-                                                              !isClientMuted,
-                                                        );
-                                                        _engine
-                                                            .muteLocalAudioStream(
-                                                              isClientMuted,
-                                                            );
-                                                      }
-                                                    },
+
+                                            child: Stack(
+                                              fit: StackFit.expand,
+                                              children: [
+                                                _localUserJoined
+                                                    ? AgoraVideoView(
+                                                        controller:
+                                                            VideoViewController(
+                                                              rtcEngine:
+                                                                  _engine,
+                                                              canvas:
+                                                                  const VideoCanvas(
+                                                                    uid: 0,
+                                                                  ),
+                                                            ),
+                                                      )
+                                                    : const Center(
+                                                        child:
+                                                            CircularProgressIndicator(
+                                                              color: Colors
+                                                                  .white54,
+                                                              strokeWidth: 2,
+                                                            ),
+                                                      ),
+                                                // Your role label
+                                                Positioned(
+                                                  bottom: 6,
+                                                  left: 8,
+                                                  child: _livePill(
+                                                    widget.selectedRole ==
+                                                            UserRole.therapist
+                                                        ? "Therapist"
+                                                        : "Client",
                                                   ),
-                                                  const SizedBox(width: 4),
-                                                  _tinyIconBtn(
-                                                    icon:
-                                                        (widget.selectedRole ==
-                                                                UserRole
-                                                                    .therapist
-                                                            ? isTherpistvideoMuted
-                                                            : isClientvideoMuted)
-                                                        ? Icons.videocam_off
-                                                        : Icons.videocam,
-                                                    onTap: () {
-                                                      if (widget.selectedRole ==
-                                                          UserRole.therapist) {
-                                                        setState(
-                                                          () => isTherpistvideoMuted =
-                                                              !isTherpistvideoMuted,
-                                                        );
-                                                        _engine.muteLocalVideoStream(
-                                                          isTherpistvideoMuted,
-                                                        );
-                                                      } else {
-                                                        setState(
-                                                          () => isClientvideoMuted =
-                                                              !isClientvideoMuted,
-                                                        );
-                                                        _engine
-                                                            .muteLocalVideoStream(
+                                                ),
+                                                // Mic + video controls on YOUR tile
+                                                Positioned(
+                                                  top: 6,
+                                                  right: 6,
+                                                  child: Row(
+                                                    children: [
+                                                      _tinyIconBtn(
+                                                        icon:
+                                                            (widget.selectedRole ==
+                                                                    UserRole
+                                                                        .therapist
+                                                                ? isTherpistMuted
+                                                                : isClientMuted)
+                                                            ? Icons.mic_off
+                                                            : Icons.mic,
+                                                        onTap: () {
+                                                          if (widget
+                                                                  .selectedRole ==
+                                                              UserRole
+                                                                  .therapist) {
+                                                            setState(
+                                                              () => isTherpistMuted =
+                                                                  !isTherpistMuted,
+                                                            );
+                                                            _engine
+                                                                .muteLocalAudioStream(
+                                                                  isTherpistMuted,
+                                                                );
+                                                          } else {
+                                                            setState(
+                                                              () => isClientMuted =
+                                                                  !isClientMuted,
+                                                            );
+                                                            _engine
+                                                                .muteLocalAudioStream(
+                                                                  isClientMuted,
+                                                                );
+                                                          }
+                                                        },
+                                                      ),
+                                                      const SizedBox(width: 4),
+                                                      _tinyIconBtn(
+                                                        icon:
+                                                            (widget.selectedRole ==
+                                                                    UserRole
+                                                                        .therapist
+                                                                ? isTherpistvideoMuted
+                                                                : isClientvideoMuted)
+                                                            ? Icons.videocam_off
+                                                            : Icons.videocam,
+                                                        onTap: () {
+                                                          if (widget
+                                                                  .selectedRole ==
+                                                              UserRole
+                                                                  .therapist) {
+                                                            setState(
+                                                              () => isTherpistvideoMuted =
+                                                                  !isTherpistvideoMuted,
+                                                            );
+                                                            _engine.muteLocalVideoStream(
+                                                              isTherpistvideoMuted,
+                                                            );
+                                                          } else {
+                                                            setState(
+                                                              () => isClientvideoMuted =
+                                                                  !isClientvideoMuted,
+                                                            );
+                                                            _engine.muteLocalVideoStream(
                                                               isClientvideoMuted,
                                                             );
-                                                      }
-                                                    },
+                                                          }
+                                                        },
+                                                      ),
+                                                    ],
                                                   ),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-
-                                  const SizedBox(height: 8),
-
-                                  // BOTTOM tile — double-tap swaps this with the main panel
-                                  // Normal:  remote camera (small)
-                                  // Swapped: video (small)
-                                  Expanded(
-                                    child: GestureDetector(
-                                      onDoubleTap: () => setState(
-                                        () => _isSwapped = !_isSwapped,
-                                      ),
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(16),
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            color: Colors.black87,
-
-                                            border: Border.all(
-                                              color: Color(0xff00bd74),
+                                                ),
+                                              ],
                                             ),
                                           ),
-                                          child:
-                                              widget.selectedRole ==
-                                                  UserRole.therapist
-                                              ? _isSwapped
-                                                    ? _buildRemoteCamera(
-                                                        large: true,
-                                                      )
-                                                    : _buildVideoPanel()
-                                              : _buildVideoPanel(),
                                         ),
                                       ),
-                                    ),
+
+                                      const SizedBox(height: 8),
+
+                                      // BOTTOM tile — double-tap swaps this with the main panel
+                                      // Normal:  remote camera (small)
+                                      // Swapped: video (small)
+                                      Expanded(
+                                        child: GestureDetector(
+                                          onDoubleTap: () => setState(
+                                            () => _isSwapped = !_isSwapped,
+                                          ),
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
+                                            child: Container(
+                                              decoration: BoxDecoration(
+                                                color: Colors.black87,
+
+                                                border: Border.all(
+                                                  color: Color(0xff00bd74),
+                                                ),
+                                              ),
+                                              child:
+                                                  widget.selectedRole ==
+                                                      UserRole.therapist
+                                                  ? _isSwapped
+                                                        ? _buildRemoteCamera(
+                                                            large: true,
+                                                          )
+                                                        : _buildVideoPanel()
+                                                  : _buildVideoPanel(),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+
+                          const SizedBox(height: 10),
+
+                          if (widget.selectedRole == UserRole.therapist)
+                            widget.selectedRole == UserRole.therapist
+                                ? _bottomControlsBar()
+                                : SizedBox(),
+                        ],
                       ),
+                    ),
 
-                      const SizedBox(height: 10),
-
-                      if (widget.selectedRole == UserRole.therapist)
-                        widget.selectedRole == UserRole.therapist
-                            ? _bottomControlsBar()
-                            : SizedBox(),
-                    ],
-                  ),
+                    const SizedBox(width: 10),
+                    widget.selectedRole == UserRole.therapist
+                        ? _rewardPanel()
+                        : SizedBox(),
+                  ],
                 ),
+              ),
 
-                const SizedBox(width: 10),
-                widget.selectedRole == UserRole.therapist
-                    ? _rewardPanel()
-                    : SizedBox(),
-              ],
-            ),
+              if (showVideoLibrary) _videoLibraryWindow(),
+            ],
           ),
-
-          if (showVideoLibrary) _videoLibraryWindow(),
-        ],
+        ),
       ),
     );
   }
@@ -1160,9 +1240,11 @@ class _MyAppState extends State<MyApp> {
     switch (style) {
       case _ActionStyle.filled:
         deco = BoxDecoration(
-          border:Border.all(
+          border: Border.all(
             width: 4,
-            color:isDisabled? const Color.fromARGB(255, 200, 238, 223): Color(0xff005735)
+            color: isDisabled
+                ? const Color.fromARGB(255, 200, 238, 223)
+                : Color(0xff005735),
           ),
           color: isDisabled
               ? const Color.fromARGB(255, 200, 238, 223)
@@ -1177,9 +1259,12 @@ class _MyAppState extends State<MyApp> {
         break;
       case _ActionStyle.soft:
         deco = BoxDecoration(
-          border: Border.all(color:
-          isDisabled? const Color.fromARGB(255, 200, 238, 223):
-          const Color(0xff005735), width: 4),
+          border: Border.all(
+            color: isDisabled
+                ? const Color.fromARGB(255, 200, 238, 223)
+                : const Color(0xff005735),
+            width: 4,
+          ),
 
           color: isDisabled
               ? const Color.fromARGB(255, 200, 238, 223)
@@ -1194,13 +1279,15 @@ class _MyAppState extends State<MyApp> {
         break;
       case _ActionStyle.outline:
         deco = BoxDecoration(
-          
           color: isDisabled
               ? const Color.fromARGB(255, 200, 238, 223)
               : const Color(0xFF00bd74),
-          border: Border.all(color: 
-          isDisabled? const Color.fromARGB(255, 200, 238, 223):
-          const Color(0xff005735), width: 4),
+          border: Border.all(
+            color: isDisabled
+                ? const Color.fromARGB(255, 200, 238, 223)
+                : const Color(0xff005735),
+            width: 4,
+          ),
           borderRadius: BorderRadius.circular(30),
         );
         textStyle = TextStyle(
@@ -1211,11 +1298,11 @@ class _MyAppState extends State<MyApp> {
         break;
       case _ActionStyle.danger:
         deco = BoxDecoration(
-              border:Border.all(
+          border: Border.all(
             width: 4,
-            color:
-            isDisabled? const Color.fromARGB(255, 200, 238, 223):
-             Color(0xff005735)
+            color: isDisabled
+                ? const Color.fromARGB(255, 200, 238, 223)
+                : Color(0xff005735),
           ),
           color: isDisabled ? Colors.red.shade200 : Colors.red,
           shape: BoxShape.circle,
@@ -1481,34 +1568,33 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
-  
-//   Widget _floatingReaction(_VideoReaction reaction) {
-//     return Positioned(
-//       key: ValueKey(reaction.id),
-//       bottom: 120,
-//       left: reaction.startX,
-//       child: TweenAnimationBuilder(
-//         tween: Tween<double>(begin: 0, end: 1),
-//         duration: const Duration(seconds: 2),
-//         builder: (context, double value, child) {
-//           return Transform.translate(
-//             offset: Offset(0, -200 * value),
-//             child: Opacity(
-//               opacity: 1 - value,
-//               child: Image.asset(reaction.path, width: 50),
-//             ),
-//           );
-//         },
-//       ),
-//     );
-//   }
-// }
+  //   Widget _floatingReaction(_VideoReaction reaction) {
+  //     return Positioned(
+  //       key: ValueKey(reaction.id),
+  //       bottom: 120,
+  //       left: reaction.startX,
+  //       child: TweenAnimationBuilder(
+  //         tween: Tween<double>(begin: 0, end: 1),
+  //         duration: const Duration(seconds: 2),
+  //         builder: (context, double value, child) {
+  //           return Transform.translate(
+  //             offset: Offset(0, -200 * value),
+  //             child: Opacity(
+  //               opacity: 1 - value,
+  //               child: Image.asset(reaction.path, width: 50),
+  //             ),
+  //           );
+  //         },
+  //       ),
+  //     );
+  //   }
+  // }
 
-// class _VideoReaction {
-//   final String id;
-//   final String path;
-//   final double startX;
+  // class _VideoReaction {
+  //   final String id;
+  //   final String path;
+  //   final double startX;
 
-//   _VideoReaction(this.id, this.path, this.startX);
-// }
+  //   _VideoReaction(this.id, this.path, this.startX);
+  // }
 }
