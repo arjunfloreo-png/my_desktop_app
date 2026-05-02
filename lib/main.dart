@@ -18,7 +18,7 @@ const channel = "demoWebsocket";
 
 enum UserRole { therapist, client }
 
-enum _ActionStyle { filled, soft, outline, danger, timer }
+enum _ActionStyle { filled, soft, outline, danger }
 
 const bool kCharacterIsAsset = true;
 
@@ -38,9 +38,7 @@ const List<String> _pausePrompts = [
   'What do you think? 🧠',
   'Try it yourself! 💪',
 ];
-// ── Badge fly-up animation ────────────────────────────────────
-final List<_FlyingBadge> _flyingBadges = [];
-int _flyingBadgeIdCounter = 0;
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
@@ -63,6 +61,25 @@ class RewardBadge {
     required this.emoji,
     required this.bgColor,
     required this.name,
+  });
+}
+
+// ── Flying badge animation model ─────────────────────────────
+class _FlyingBadge {
+  final int id;
+  final RewardBadge badge;
+  final AnimationController controller;
+  final Animation<double> slideY;
+  final Animation<double> opacity;
+  final Animation<double> scale;
+
+  _FlyingBadge({
+    required this.id,
+    required this.badge,
+    required this.controller,
+    required this.slideY,
+    required this.opacity,
+    required this.scale,
   });
 }
 
@@ -111,13 +128,13 @@ class _BouncingCharacterState extends State<_BouncingCharacter>
         child: kCharacterIsAsset
             // ── LOCAL ASSET (png / gif / webp) ──────────────────
             ? Lottie.asset('assets/lottie/character.json')
-            // Image.asset(
+            //  Image.asset(
             //     kCharacterSource,
             //     width: kCharacterWidth,
             //     fit: BoxFit.contain,
             //     errorBuilder: (context, error, stackTrace) => _fallback(),
             //   )
-            // // ── NETWORK URL (png / gif / webp) ──────────────────
+            // ── NETWORK URL (png / gif / webp) ──────────────────
             : Image.network(
                 kCharacterSource,
                 width: kCharacterWidth,
@@ -164,7 +181,7 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
+class _MyAppState extends State<MyApp> with TickerProviderStateMixin {
   int? _remoteUid;
   bool _localUserJoined = false;
   late RtcEngine _engine;
@@ -198,6 +215,10 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
   bool _isRewardDrawerOpen = false;
   late AnimationController _drawerAnimController;
   late Animation<Offset> _drawerSlideAnim;
+
+  // ── Flying badge animation state ─────────────────────────────
+  final List<_FlyingBadge> _flyingBadges = [];
+  int _flyingBadgeIdCounter = 0;
 
   late final Player _player;
   late VideoController _videoController;
@@ -319,6 +340,59 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
     } else {
       await _resumeVideo();
     }
+  }
+
+  // ── Badge fly-up animation launcher ──────────────────────────
+  void _launchBadgeAnimation(RewardBadge badge) {
+    final id = _flyingBadgeIdCounter++;
+    final ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    );
+
+    // Slides from bottom (1.2 = off screen below) to above center (-0.4)
+    final slideY = Tween<double>(
+      begin: 1.2,
+      end: -0.4,
+    ).animate(CurvedAnimation(parent: ctrl, curve: Curves.easeOutCubic));
+
+    // Fade in quickly, hold, then fade out near the end
+    final opacity = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 8),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 72),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 20),
+    ]).animate(ctrl);
+
+    // Pop in with an elastic bounce
+    final scale = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 0.3,
+          end: 1.2,
+        ).chain(CurveTween(curve: Curves.elasticOut)),
+        weight: 35,
+      ),
+      TweenSequenceItem(tween: Tween(begin: 1.2, end: 1.0), weight: 10),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 55),
+    ]).animate(ctrl);
+
+    final flying = _FlyingBadge(
+      id: id,
+      badge: badge,
+      controller: ctrl,
+      slideY: slideY,
+      opacity: opacity,
+      scale: scale,
+    );
+
+    setState(() => _flyingBadges.add(flying));
+
+    ctrl.forward().then((_) {
+      ctrl.dispose();
+      if (mounted) {
+        setState(() => _flyingBadges.removeWhere((b) => b.id == id));
+      }
+    });
   }
 
   void _showAddBadgeDialog() {
@@ -629,6 +703,11 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
     _durationSub?.cancel();
     _player.dispose();
     _drawerAnimController.dispose();
+    // Dispose any active flying badge controllers
+    for (final fb in _flyingBadges) {
+      fb.controller.dispose();
+    }
+    _flyingBadges.clear();
     _disposeAgora();
     super.dispose();
   }
@@ -665,7 +744,7 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
     return Container(
       decoration: BoxDecoration(
         color: Colors.black87,
-        //  border: Border.all(color: const Color(0xff00bd74)),
+        border: Border.all(color: const Color(0xff00bd74)),
       ),
       child: Stack(
         fit: StackFit.expand,
@@ -781,25 +860,17 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
   Widget _buildVideoPanel() {
     return isVideoMode
         ? Container(
-            decoration: BoxDecoration(
-              color: Colors.black87,
-              //   border: Border.all(color: const Color(0xff00bd74)),
-            ),
+            decoration: const BoxDecoration(color: Colors.black87),
             child: Stack(
               fit: StackFit.expand,
               children: [
-                // ── VOD player ──────────────────────────────────
                 // ── VOD player ──────────────────────────────────────────────
                 SizedBox.expand(
                   child: FittedBox(
                     fit: BoxFit.cover,
                     child: SizedBox(
-                      width: widget.selectedRole == UserRole.therapist
-                          ? 1920
-                          : 1024,
-                      height: widget.selectedRole == UserRole.therapist
-                          ? 1080
-                          : 810,
+                      width: 1920,
+                      height: 1080,
                       child: Video(
                         controller: _videoController,
                         controls: NoVideoControls,
@@ -807,7 +878,6 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
                     ),
                   ),
                 ),
-                //    Video(controller: _videoController, controls: NoVideoControls),
 
                 // ── Character image overlay (shown when paused) ─
                 AnimatedSwitcher(
@@ -876,109 +946,6 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
         : _videoPlaceholder();
   }
 
-  void _launchBadgeAnimation(RewardBadge badge) {
-    final id = _flyingBadgeIdCounter++;
-    final ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1800),
-    );
-
-    // Slides from bottom (1.0) to slightly above center (0.0 = off top)
-    final slideY = Tween<double>(
-      begin: 1.2,
-      end: -0.3,
-    ).animate(CurvedAnimation(parent: ctrl, curve: Curves.easeOutCubic));
-
-    // Fade in quickly, hold, then fade out near the end
-    final opacity = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 10),
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 70),
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 20),
-    ]).animate(ctrl);
-
-    // Pop in with a bounce
-    final scale = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween(
-          begin: 0.4,
-          end: 1.15,
-        ).chain(CurveTween(curve: Curves.elasticOut)),
-        weight: 30,
-      ),
-      TweenSequenceItem(tween: Tween(begin: 1.15, end: 1.0), weight: 10),
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 60),
-    ]).animate(ctrl);
-
-    final flying = _FlyingBadge(
-      id: id,
-      badge: badge,
-      controller: ctrl,
-      slideY: slideY,
-      opacity: opacity,
-      scale: scale,
-    );
-
-    setState(() => _flyingBadges.add(flying));
-
-    ctrl.forward().then((_) {
-      ctrl.dispose();
-      if (mounted) setState(() => _flyingBadges.removeWhere((b) => b.id == id));
-    });
-  }
-
-  Widget _flyingBadgeWidget(RewardBadge badge) {
-    final isDark = badge.bgColor.computeLuminance() < 0.4;
-    return Container(
-      width: 160,
-      height: 160,
-      decoration: BoxDecoration(
-        color: badge.bgColor,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: badge.bgColor.withOpacity(0.6),
-            blurRadius: 30,
-            spreadRadius: 6,
-            offset: const Offset(0, 4),
-          ),
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
-          ),
-        ],
-        border: Border.all(color: Colors.white.withOpacity(0.35), width: 3),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            badge.label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: isDark ? Colors.white : Colors.black87,
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              height: 1.2,
-              letterSpacing: 0.3,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(badge.emoji, style: const TextStyle(fontSize: 44)),
-          const SizedBox(height: 4),
-          Text(
-            badge.name,
-            style: TextStyle(
-              color: isDark ? Colors.white70 : Colors.black54,
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   // ── Main Build ───────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
@@ -999,7 +966,8 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
         LogicalKeySet(LogicalKeyboardKey.space): ?isVideoMode
             ? () => _togglePlayPause()
             : null,
-        LogicalKeySet(LogicalKeyboardKey.f4): _endSession,
+        LogicalKeySet(LogicalKeyboardKey.alt, LogicalKeyboardKey.f4):
+            _endSession,
         LogicalKeySet(LogicalKeyboardKey.keyL): ?isVideoMode
             ? () async {
                 final t = Duration(
@@ -1023,12 +991,10 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
       child: Focus(
         autofocus: true,
         child: Scaffold(
-          backgroundColor: widget.selectedRole == UserRole.therapist
-              ? const Color(0xFFE8F5F0)
-              : const Color(0xff0f),
+          backgroundColor: const Color(0xFFE8F5F0),
           body: Stack(
             children: [
-              // ── Main layout (full width now — no reward panel column) ──
+              // ── Main layout ──────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: Column(
@@ -1046,14 +1012,14 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
                                 decoration: BoxDecoration(
                                   color: Colors.black87,
                                   border: Border.all(
-                                    color: const Color(0xff00bd74),
+                                    color: const Color(0xff005735),
                                   ),
                                 ),
                                 child: widget.selectedRole == UserRole.therapist
                                     ? _isSwapped
                                           ? _buildVideoPanel()
                                           : _buildRemoteCamera(large: false)
-                                    : _buildVideoPanel(),
+                                    : _buildRemoteCamera(),
                               ),
                             ),
                           ),
@@ -1062,10 +1028,9 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
 
                           // ── RIGHT camera column ───────────────────────
                           SizedBox(
-                            width: MediaQuery.sizeOf(context).width * 0.25,
+                            width: 200,
                             child: Column(
                               children: [
-                                // TOP tile — YOUR local feed
                                 const SizedBox(height: 8),
 
                                 // BOTTOM tile — double-tap swaps
@@ -1075,14 +1040,13 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
                                       () => _isSwapped = !_isSwapped,
                                     ),
                                     child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(12),
+                                      borderRadius: BorderRadius.circular(16),
                                       child: Container(
                                         decoration: BoxDecoration(
-                                          //  borderRadius: BorderRadius.circular(12),
                                           color: Colors.black87,
-                                          // border: Border.all(
-                                          //   color: const Color(0xff00bd74),
-                                          // ),
+                                          border: Border.all(
+                                          //color: const Color(0xff005735)
+                                          ),
                                         ),
                                         child:
                                             widget.selectedRole ==
@@ -1092,22 +1056,23 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
                                                       large: true,
                                                     )
                                                   : _buildVideoPanel()
-                                            : _buildRemoteCamera(),
+                                            : _buildVideoPanel(),
                                       ),
                                     ),
                                   ),
                                 ),
-                                SizedBox(height: 12),
+
+                                const SizedBox(height: 8),
 
                                 Expanded(
                                   child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.circular(16),
                                     child: Container(
                                       decoration: BoxDecoration(
                                         color: Colors.black,
-                                        // border: Border.all(
-                                        //   color: const Color(0xff00bd74),
-                                        // ),
+                                        border: Border.all(
+                                          color: const Color(0xff005735),
+                                        ),
                                       ),
                                       child: Stack(
                                         fit: StackFit.expand,
@@ -1216,7 +1181,6 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
                                     ),
                                   ),
                                 ),
-                                SizedBox(height: 5),
                               ],
                             ),
                           ),
@@ -1243,9 +1207,8 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
 
               if (_isRewardDrawerOpen)
                 Positioned(
-                  // Sits above the camera section, below the bottom controls bar
                   top: 12,
-                  bottom: 12 + 80, // approximate bottom bar height
+                  bottom: 12 + 80,
                   right: 12,
                   child: SlideTransition(
                     position: _drawerSlideAnim,
@@ -1256,7 +1219,7 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
               // ── Video library overlay ────────────────────────────────
               if (showVideoLibrary) _videoLibraryWindow(),
 
-              // ── Flying badge overlays ────────────────────────────────────
+              // ── Flying badge overlays (rendered on top of everything) ──
               ..._flyingBadges.map((fb) {
                 return AnimatedBuilder(
                   animation: fb.controller,
@@ -1277,10 +1240,64 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
                     );
                   },
                 );
-              }).toList(),
+              }),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // ── Flying badge large widget ────────────────────────────────
+  Widget _flyingBadgeWidget(RewardBadge badge) {
+    final isDark = badge.bgColor.computeLuminance() < 0.4;
+    return Container(
+      width: 170,
+      height: 170,
+      decoration: BoxDecoration(
+        color: badge.bgColor,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: badge.bgColor.withOpacity(0.65),
+            blurRadius: 35,
+            spreadRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.22),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+        border: Border.all(color: Colors.white.withOpacity(0.35), width: 3.5),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            badge.label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: isDark ? Colors.white : Colors.black87,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              height: 1.2,
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(badge.emoji, style: const TextStyle(fontSize: 46)),
+          const SizedBox(height: 4),
+          Text(
+            badge.name,
+            style: TextStyle(
+              color: isDark ? Colors.white70 : Colors.black54,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1391,29 +1408,6 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
                       ),
                     ),
                     const SizedBox(height: 8),
-
-                    // // Add badge button
-                    // GestureDetector(
-                    //   onTap: _showAddBadgeDialog,
-                    //   child: Container(
-                    //     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    //     decoration: BoxDecoration(
-                    //       border: Border.all(color: const Color(0xFF00796B)),
-                    //       borderRadius: BorderRadius.circular(20),
-                    //     ),
-                    //     child: const Row(
-                    //       mainAxisSize: MainAxisSize.min,
-                    //       children: [
-                    //         Icon(Icons.add, color: Color(0xFF00796B), size: 16),
-                    //         SizedBox(width: 4),
-                    //         Text(
-                    //           'Add Badge',
-                    //           style: TextStyle(color: Color(0xFF00796B), fontSize: 12),
-                    //         ),
-                    //       ],
-                    //     ),
-                    //   ),
-                    // ),
                   ],
                 ),
               ),
@@ -1612,7 +1606,6 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
             children: [
               _actionButton(
                 isButton: false,
-                isIcon: false,
                 label: 'TAKE ME BACK',
                 style: _ActionStyle.soft,
                 onTap: isVideoMode
@@ -1628,49 +1621,29 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
               ),
               _actionButton(
                 isButton: false,
-                isIcon: false,
                 label: isVideoPlaying ? 'POSE A QUESTION' : '  ASKING...',
                 style: _ActionStyle.outline,
                 onTap: isVideoMode ? () => _togglePlayPause() : null,
               ),
-
-              // _actionButton(
-              //   isIcon: true,
-              //   icon: Icons.timer,
-              //   isButton: false,
-              //   label: '',
-              //   style: _ActionStyle.timer,
-              // ),
-
               AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        padding: EdgeInsets.symmetric(
-          horizontal: 20,
-          vertical: 10,
-        ),
-        decoration: BoxDecoration(
-            color: Color(0xFF00bd74),
-            border: Border.all(
-              width: 4,
-              color: Color(0xff005735)
-            ),
-                      borderRadius: BorderRadius.circular(30),
-        ),
-        child: Icon(Icons.timer,color: Colors.white)
+                duration: const Duration(milliseconds: 120),
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Color(0xFF00bd74),
+                  border: Border.all(width: 4, color: Color(0xff005735)),
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: Icon(Icons.timer, color: Colors.white),
               ),
               _actionButton(
                 isButton: true,
-                isIcon: false,
                 icon: Icons.call_end_sharp,
                 label: '',
                 style: _ActionStyle.danger,
                 onTap: _endSession,
               ),
-
-              // ── REWARD BOX button (placed right after ask a question) ──
               _actionButton(
                 isButton: false,
-                isIcon: false,
                 label: 'DIVE IN',
                 style: _ActionStyle.filled,
                 onTap: isVideoMode
@@ -1686,7 +1659,6 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
               ),
               _actionButton(
                 isButton: false,
-                isIcon: false,
                 label: 'LET ME SHARE',
                 style: _ActionStyle.outline,
                 onTap: isVideoMode
@@ -1695,14 +1667,8 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
               ),
               _actionButton(
                 isButton: false,
-
-                isIcon: false,
                 label: '🏅 REWARD BOX',
                 style: _ActionStyle.outline,
-
-                // style: _isRewardDrawerOpen
-                //     ? _ActionStyle.filled
-                //     : _ActionStyle.outline,
                 onTap: _toggleRewardDrawer,
               ),
             ],
@@ -1735,7 +1701,6 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
   // ── Action button ────────────────────────────────────────────
   Widget _actionButton({
     required bool isButton,
-    required bool isIcon,
     IconData? icon,
     required String label,
     required _ActionStyle style,
@@ -1748,8 +1713,7 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
 
     switch (style) {
       case _ActionStyle.filled:
-        deco = 
-        BoxDecoration(
+        deco = BoxDecoration(
           border: Border.all(
             width: 4,
             color: isDisabled
@@ -1822,27 +1786,6 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
           fontSize: 16,
         );
         break;
-
-      case _ActionStyle.timer:
-        deco = BoxDecoration(
-          color: isDisabled
-              ? const Color.fromARGB(255, 200, 238, 223)
-              : const Color(0xFF00bd74),
-          // border: Border.all(
-          //   color: isDisabled
-          //       ? const Color.fromARGB(255, 200, 238, 223)
-          //       : const Color(0xff005735),
-          //   width: 4,
-          // ),
-          borderRadius: BorderRadius.circular(30),
-        );
-      
-        textStyle = TextStyle(
-          color: const Color(0xffdaf9ed),
-          fontWeight: FontWeight.w600,
-          fontSize: small ? 11 : 15,
-        );
-        break;
     }
 
     return GestureDetector(
@@ -1861,19 +1804,11 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
     );
   }
 
-  // ── Reward badge tile ────────────────────────────────────────
+  // ── Reward badge tile (in drawer) ────────────────────────────
   Widget _rewardBadge(RewardBadge badge, {double size = 90}) {
     final isDark = badge.bgColor.computeLuminance() < 0.4;
     return GestureDetector(
-      onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Sent "${badge.label}" to ${badge.name}'),
-            duration: const Duration(seconds: 1),
-            backgroundColor: badge.bgColor,
-          ),
-        );
-      },
+      onTap: () => _launchBadgeAnimation(badge), // ← triggers fly-up
       child: Container(
         width: size,
         height: size,
@@ -2054,22 +1989,4 @@ class _BubbleTailPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_) => false;
-}
-
-class _FlyingBadge {
-  final int id;
-  final RewardBadge badge;
-  final AnimationController controller;
-  final Animation<double> slideY;
-  final Animation<double> opacity;
-  final Animation<double> scale;
-
-  _FlyingBadge({
-    required this.id,
-    required this.badge,
-    required this.controller,
-    required this.slideY,
-    required this.opacity,
-    required this.scale,
-  });
 }
