@@ -12,12 +12,33 @@ import 'package:media_kit_video/media_kit_video.dart';
 
 const appId = "54bf8a5095374303aa14ff23c73bac0d";
 const token =
-    "007eJxTYFBn2h12zpOp8Zz/mpl/OFZJndrwKZalTqfg2tmT/VcE+CIVGExNktIsEk0NLE2NzU2MDYwTEw1N0tKMjJPNjZMSkw1SJNQ+ZzYEMjJYnu1jZWSAQBCflyElNTc/PDWpOD85O7WEgQEAOsgiUA==";
+    "007eJxTYFCaGt91ZvspHtUfFWseWcsFCqhFN0+0lLpSGWRZnbbE6IICg6lJUppFoqmBpamxuYmxgXFioqFJWpqRcbK5cVJiskFKe+3XzIZARoZ65nsMjFAI4vMypKTm5oenJhXnJ2enljAwAAD/3SHR";
 const channel = "demoWebsocket";
 
 enum UserRole { therapist, client }
 
 enum _ActionStyle { filled, soft, outline, danger }
+
+// ─────────────────────────────────────────────────────────────────
+//  CHARACTER IMAGE CONFIG — change ONLY these 3 lines
+// ─────────────────────────────────────────────────────────────────
+
+/// Set to true  → loads image from your assets folder (local)
+/// Set to false → loads image from a URL (online/hosted)
+const bool kCharacterIsAsset = true;
+
+/// If kCharacterIsAsset = true  → put your asset path here
+///   e.g. 'assets/images/character.png'
+///        'assets/images/character.gif'
+/// If kCharacterIsAsset = false → put your image URL here
+///   e.g. 'https://example.com/character.png'
+///        'https://example.com/character.gif'
+const String kCharacterSource = 'assets/images/character.png';
+
+/// Width of the character image on screen (height scales automatically)
+const double kCharacterWidth = 130.0;
+
+// ─────────────────────────────────────────────────────────────────
 
 // ── Pause prompt messages shown in the speech bubble ────────────
 const List<String> _pausePrompts = [
@@ -57,7 +78,7 @@ class RewardBadge {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  Bouncing character widget
+//  Bouncing character widget — uses YOUR image file
 // ═══════════════════════════════════════════════════════════════
 class _BouncingCharacter extends StatefulWidget {
   const _BouncingCharacter();
@@ -78,9 +99,10 @@ class _BouncingCharacterState extends State<_BouncingCharacter>
       vsync: this,
       duration: const Duration(milliseconds: 1400),
     )..repeat(reverse: true);
-    _bounce = Tween<double>(begin: 0.0, end: -12.0).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
-    );
+    _bounce = Tween<double>(
+      begin: 0.0,
+      end: -12.0,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
   }
 
   @override
@@ -93,159 +115,55 @@ class _BouncingCharacterState extends State<_BouncingCharacter>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _bounce,
-      builder: (_, child) => Transform.translate(
-        offset: Offset(0, _bounce.value),
-        child: child,
-      ),
+      builder: (_, child) =>
+          Transform.translate(offset: Offset(0, _bounce.value), child: child),
       child: SizedBox(
-        width: 110,
-        height: 140,
-        child: CustomPaint(painter: _CharacterPainter()),
+        width: kCharacterWidth,
+        child: kCharacterIsAsset
+            // ── LOCAL ASSET (png / gif / webp) ──────────────────
+            ? Image.asset(
+                kCharacterSource,
+                width: kCharacterWidth,
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) => _fallback(),
+              )
+            // ── NETWORK URL (png / gif / webp) ──────────────────
+            : Image.network(
+                kCharacterSource,
+                width: kCharacterWidth,
+                fit: BoxFit.contain,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return SizedBox(
+                    width: kCharacterWidth,
+                    height: kCharacterWidth,
+                    child: const Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xff00bd74),
+                        strokeWidth: 2,
+                      ),
+                    ),
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) => _fallback(),
+              ),
       ),
     );
   }
-}
 
-// ── Character painter (drawn entirely with canvas primitives) ───
-class _CharacterPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final green = Paint()..color = const Color(0xff00bd74);
-    final darkGreen = Paint()..color = const Color(0xff005735);
-    final lightGreen = Paint()..color = const Color(0xff00e68a);
-    final white = Paint()..color = Colors.white;
-
-    // Drop shadow
-    canvas.drawOval(
-      Rect.fromCenter(center: const Offset(55, 128), width: 56, height: 16),
-      Paint()..color = const Color(0xff00bd74).withOpacity(0.18),
-    );
-
-    // Legs
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-          const Rect.fromLTWH(42, 105, 9, 22), const Radius.circular(4)),
-      green,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-          const Rect.fromLTWH(59, 105, 9, 22), const Radius.circular(4)),
-      green,
-    );
-
-    // Feet
-    canvas.drawOval(
-        Rect.fromCenter(center: const Offset(46, 127), width: 14, height: 8),
-        darkGreen);
-    canvas.drawOval(
-        Rect.fromCenter(center: const Offset(64, 127), width: 14, height: 8),
-        darkGreen);
-
-    // Body torso
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-          const Rect.fromLTWH(33, 68, 44, 42), const Radius.circular(14)),
-      green,
-    );
-
-    // Left arm
-    canvas.save();
-    canvas.translate(16, 76);
-    canvas.rotate(-0.26);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-          const Rect.fromLTWH(0, -4, 18, 9), const Radius.circular(4)),
-      green,
-    );
-    canvas.restore();
-
-    // Right arm
-    canvas.save();
-    canvas.translate(76, 76);
-    canvas.rotate(0.26);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-          const Rect.fromLTWH(0, -4, 18, 9), const Radius.circular(4)),
-      green,
-    );
-    canvas.restore();
-
-    // Hands
-    canvas.drawCircle(const Offset(14, 85), 6, green);
-    canvas.drawCircle(const Offset(96, 85), 6, green);
-
-    // Head
-    canvas.drawCircle(const Offset(55, 50), 28, lightGreen);
-
-    // Eye whites
-    canvas.drawOval(
-        Rect.fromCenter(center: const Offset(44, 46), width: 12, height: 14),
-        white);
-    canvas.drawOval(
-        Rect.fromCenter(center: const Offset(66, 46), width: 12, height: 14),
-        white);
-
-    // Pupils
-    canvas.drawCircle(const Offset(45, 47), 3.5, darkGreen);
-    canvas.drawCircle(const Offset(67, 47), 3.5, darkGreen);
-
-    // Eye shine
-    canvas.drawCircle(const Offset(46.2, 45.5), 1.2, white);
-    canvas.drawCircle(const Offset(68.2, 45.5), 1.2, white);
-
-    // Eyebrows
-    final browPaint = Paint()
-      ..color = const Color(0xff005735)
-      ..strokeWidth = 2.2
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    final leftBrow = Path()
-      ..moveTo(38, 37)
-      ..quadraticBezierTo(44, 33, 50, 37);
-    final rightBrow = Path()
-      ..moveTo(60, 37)
-      ..quadraticBezierTo(66, 33, 72, 37);
-    canvas.drawPath(leftBrow, browPaint);
-    canvas.drawPath(rightBrow, browPaint);
-
-    // Smile
-    final mouthPaint = Paint()
-      ..color = const Color(0xff005735)
-      ..strokeWidth = 2.5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    final mouth = Path()
-      ..moveTo(44, 60)
-      ..quadraticBezierTo(55, 70, 66, 60);
-    canvas.drawPath(mouth, mouthPaint);
-
-    // Blush circles
-    canvas.drawOval(
-      Rect.fromCenter(center: const Offset(36, 57), width: 12, height: 8),
-      Paint()..color = Colors.red.withOpacity(0.28),
-    );
-    canvas.drawOval(
-      Rect.fromCenter(center: const Offset(74, 57), width: 12, height: 8),
-      Paint()..color = Colors.red.withOpacity(0.28),
-    );
-
-    // Question mark on shirt
-    final tp = TextPainter(
-      text: const TextSpan(
-        text: '?',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-        ),
+  // shown if image fails to load
+  Widget _fallback() {
+    return Container(
+      width: kCharacterWidth,
+      height: kCharacterWidth,
+      decoration: BoxDecoration(
+        color: const Color(0xff00bd74).withOpacity(0.2),
+        shape: BoxShape.circle,
+        border: Border.all(color: const Color(0xff00bd74), width: 2),
       ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, const Offset(47, 80));
+      child: const Center(child: Text('🧒', style: TextStyle(fontSize: 48))),
+    );
   }
-
-  @override
-  bool shouldRepaint(_) => false;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -274,11 +192,9 @@ class _MyAppState extends State<MyApp> {
   bool showVideoLibrary = false;
   bool isVideoPlaying = false;
 
-  // ── true  → video is in the big panel, remote camera is in the small slot
-  // ── false → remote camera is in the big panel, video is in the small slot
   bool _isSwapped = false;
 
-  // ── Character overlay ─────────────────────────────────────────
+  // ── Character overlay state ───────────────────────────────────
   bool _showCharacter = false;
   String _currentPrompt = _pausePrompts[0];
   final _random = Random();
@@ -292,6 +208,10 @@ class _MyAppState extends State<MyApp> {
   bool _isVolumeMuted = false;
   bool _showAllBadges = false;
 
+  // ── Reward drawer ────────────────────────────────────────────
+  bool _isRewardDrawerOpen = false;
+  late AnimationController _drawerAnimController;
+  late Animation<Offset> _drawerSlideAnim;
   late final Player _player;
   late VideoController _videoController;
 
@@ -347,16 +267,45 @@ class _MyAppState extends State<MyApp> {
   ];
 
   static const List<String> _emojiOptions = [
-    '😊', '⭐', '😎', '🤣', '💪', '🏆', '🎉', '🌟',
-    '🥳', '❤️', '🔥', '👏', '🦋', '🌈', '🎯', '🧠',
-    '🐣', '🦄', '🎀', '🍀', '🚀', '💡', '🎸', '🌺',
+    '😊',
+    '⭐',
+    '😎',
+    '🤣',
+    '💪',
+    '🏆',
+    '🎉',
+    '🌟',
+    '🥳',
+    '❤️',
+    '🔥',
+    '👏',
+    '🦋',
+    '🌈',
+    '🎯',
+    '🧠',
+    '🐣',
+    '🦄',
+    '🎀',
+    '🍀',
+    '🚀',
+    '💡',
+    '🎸',
+    '🌺',
   ];
 
   static const List<Color> _colorOptions = [
-    Color(0xFFE53935), Color(0xFF1565C0), Color(0xFF0D1B2A),
-    Color(0xFFE3F2FD), Color(0xFF388E3C), Color(0xFFF57F17),
-    Color(0xFF6A1B9A), Color(0xFF00838F), Color(0xFFAD1457),
-    Color(0xFF4E342E), Color(0xFF546E7A), Color(0xFFFDD835),
+    Color(0xFFE53935),
+    Color(0xFF1565C0),
+    Color(0xFF0D1B2A),
+    Color(0xFFE3F2FD),
+    Color(0xFF388E3C),
+    Color(0xFFF57F17),
+    Color(0xFF6A1B9A),
+    Color(0xFF00838F),
+    Color(0xFFAD1457),
+    Color(0xFF4E342E),
+    Color(0xFF546E7A),
+    Color(0xFFFDD835),
   ];
 
   // ── Pause / resume helpers ────────────────────────────────────
@@ -365,8 +314,7 @@ class _MyAppState extends State<MyApp> {
     setState(() {
       isVideoPlaying = false;
       _showCharacter = true;
-      _currentPrompt =
-          _pausePrompts[_random.nextInt(_pausePrompts.length)];
+      _currentPrompt = _pausePrompts[_random.nextInt(_pausePrompts.length)];
     });
   }
 
@@ -452,41 +400,50 @@ class _MyAppState extends State<MyApp> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text('Label',
-                    style:
-                        TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                const Text(
+                  'Label',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
                 const SizedBox(height: 4),
                 TextField(
                   controller: labelController,
                   decoration: InputDecoration(
                     hintText: 'e.g. Great Work!',
                     contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 8),
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10)),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                   onChanged: (_) => setDialogState(() {}),
                 ),
                 const SizedBox(height: 12),
-                const Text('Name',
-                    style:
-                        TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                const Text(
+                  'Name',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
                 const SizedBox(height: 4),
                 TextField(
                   controller: nameController,
                   decoration: InputDecoration(
                     hintText: 'e.g. Alex',
                     contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 8),
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10)),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                   onChanged: (_) => setDialogState(() {}),
                 ),
                 const SizedBox(height: 12),
-                const Text('Emoji',
-                    style:
-                        TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                const Text(
+                  'Emoji',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
                 const SizedBox(height: 6),
                 Wrap(
                   spacing: 8,
@@ -499,24 +456,24 @@ class _MyAppState extends State<MyApp> {
                         width: 36,
                         height: 36,
                         decoration: BoxDecoration(
-                          color:
-                              isSel ? Colors.black12 : Colors.transparent,
+                          color: isSel ? Colors.black12 : Colors.transparent,
                           borderRadius: BorderRadius.circular(8),
-                          border:
-                              isSel ? Border.all(color: Colors.black45) : null,
+                          border: isSel
+                              ? Border.all(color: Colors.black45)
+                              : null,
                         ),
                         child: Center(
-                          child: Text(e,
-                              style: const TextStyle(fontSize: 20)),
+                          child: Text(e, style: const TextStyle(fontSize: 20)),
                         ),
                       ),
                     );
                   }).toList(),
                 ),
                 const SizedBox(height: 12),
-                const Text('Color',
-                    style:
-                        TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                const Text(
+                  'Color',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
                 const SizedBox(height: 6),
                 Wrap(
                   spacing: 8,
@@ -551,24 +508,26 @@ class _MyAppState extends State<MyApp> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.black87,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
               onPressed: () {
                 if (labelController.text.trim().isEmpty) return;
                 setState(() {
-                  _badges.add(RewardBadge(
-                    label: labelController.text.trim(),
-                    emoji: selectedEmoji,
-                    bgColor: selectedColor,
-                    name: nameController.text.trim().isEmpty
-                        ? 'Name Here'
-                        : nameController.text.trim(),
-                  ));
+                  _badges.add(
+                    RewardBadge(
+                      label: labelController.text.trim(),
+                      emoji: selectedEmoji,
+                      bgColor: selectedColor,
+                      name: nameController.text.trim().isEmpty
+                          ? 'Name Here'
+                          : nameController.text.trim(),
+                    ),
+                  );
                 });
                 Navigator.pop(ctx);
               },
-              child:
-                  const Text('Add', style: TextStyle(color: Colors.white)),
+              child: const Text('Add', style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
@@ -614,7 +573,6 @@ class _MyAppState extends State<MyApp> {
     super.initState();
     _player = Player();
     _videoController = VideoController(_player);
-
     _positionSub = _player.stream.position.listen((pos) {
       if (mounted) setState(() => _videoPosition = pos);
     });
@@ -622,12 +580,12 @@ class _MyAppState extends State<MyApp> {
       if (mounted) setState(() => _videoDuration = dur);
     });
 
+    
     initAgora();
   }
 
   Future<void> initAgora() async {
     await [Permission.microphone, Permission.camera].request();
-
     _engine = createAgoraRtcEngine();
     await _engine.initialize(
       const RtcEngineContext(
@@ -635,7 +593,6 @@ class _MyAppState extends State<MyApp> {
         channelProfile: ChannelProfileType.channelProfileLiveBroadcasting,
       ),
     );
-
     _engine.registerEventHandler(
       RtcEngineEventHandler(
         onJoinChannelSuccess: (connection, elapsed) =>
@@ -647,7 +604,6 @@ class _MyAppState extends State<MyApp> {
         onError: (error, msg) => debugPrint('❌ Agora Error: $error - $msg'),
       ),
     );
-
     await _engine.setClientRole(role: ClientRoleType.clientRoleBroadcaster);
     await _engine.enableVideo();
     await _engine.startPreview();
@@ -721,22 +677,23 @@ class _MyAppState extends State<MyApp> {
                     textAlign: TextAlign.center,
                   ),
                 ),
-          // Role label
           Positioned(
             bottom: 6,
             left: 8,
             child: _livePill(
-              widget.selectedRole == UserRole.therapist ? 'Client' : 'Therapist',
+              widget.selectedRole == UserRole.therapist
+                  ? 'Client'
+                  : 'Therapist',
             ),
           ),
-          // Mic + video controls
           Positioned(
             top: 6,
             right: 6,
             child: Row(
               children: [
                 _tinyIconBtn(
-                  icon: (widget.selectedRole == UserRole.therapist
+                  icon:
+                      (widget.selectedRole == UserRole.therapist
                           ? isClientMuted
                           : isTherpistMuted)
                       ? Icons.mic_off
@@ -753,7 +710,8 @@ class _MyAppState extends State<MyApp> {
                 ),
                 const SizedBox(width: 4),
                 _tinyIconBtn(
-                  icon: (widget.selectedRole == UserRole.therapist
+                  icon:
+                      (widget.selectedRole == UserRole.therapist
                           ? isTherpistvideoMuted
                           : isClientvideoMuted)
                       ? Icons.videocam_off
@@ -761,7 +719,8 @@ class _MyAppState extends State<MyApp> {
                   onTap: () {
                     if (widget.selectedRole == UserRole.therapist) {
                       setState(
-                          () => isTherpistvideoMuted = !isTherpistvideoMuted);
+                        () => isTherpistvideoMuted = !isTherpistvideoMuted,
+                      );
                       _engine.muteLocalVideoStream(isTherpistvideoMuted);
                     } else {
                       setState(() => isClientvideoMuted = !isClientvideoMuted);
@@ -772,14 +731,12 @@ class _MyAppState extends State<MyApp> {
               ],
             ),
           ),
-          // Double-tap swap hint (small position only)
           if (!large)
             Positioned(
               top: 6,
               left: 8,
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                 decoration: BoxDecoration(
                   color: Colors.black38,
                   borderRadius: BorderRadius.circular(12),
@@ -788,12 +745,16 @@ class _MyAppState extends State<MyApp> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (widget.selectedRole == UserRole.therapist) ...[
-                      const Icon(Icons.swap_horiz,
-                          color: Colors.white70, size: 12),
+                      const Icon(
+                        Icons.swap_horiz,
+                        color: Colors.white70,
+                        size: 12,
+                      ),
                       const SizedBox(width: 3),
-                      const Text('2× swap',
-                          style:
-                              TextStyle(color: Colors.white70, fontSize: 9)),
+                      const Text(
+                        '2× swap',
+                        style: TextStyle(color: Colors.white70, fontSize: 9),
+                      ),
                     ],
                   ],
                 ),
@@ -804,30 +765,41 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
-  // ── Video panel with character overlay ───────────────────────
+  // ── Video panel with character IMAGE overlay ─────────────────
   Widget _buildVideoPanel() {
     return isVideoMode
         ? Container(
             decoration: BoxDecoration(
               color: Colors.black87,
-              border: Border.all(color: const Color(0xff00bd74)),
+           //   border: Border.all(color: const Color(0xff00bd74)),
             ),
             child: Stack(
               fit: StackFit.expand,
               children: [
-                // ── VOD player ──────────────────────────────
-                Video(
-                  controller: _videoController,
-                  controls: NoVideoControls,
-                ),
+                // ── VOD player ──────────────────────────────────
+                // ── VOD player ──────────────────────────────────────────────
+             SizedBox.expand(
+  child: FittedBox(
+    fit: BoxFit.cover,
+    child: SizedBox(
+      width: 1920,
+      height: 1080,
+      child: Video(
+        controller: _videoController,
+        controls: NoVideoControls,
+      ),
+    ),
+  ),
+),
+                //    Video(controller: _videoController, controls: NoVideoControls),
 
-                // ── Character overlay (shown when paused) ───
+                // ── Character image overlay (shown when paused) ─
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 300),
                   child: _showCharacter
                       ? Container(
                           key: const ValueKey('character'),
-                          color: Colors.black.withOpacity(0.38),
+                          color: Colors.black.withOpacity(0.42),
                           child: Center(
                             child: TweenAnimationBuilder<double>(
                               key: ValueKey(_currentPrompt),
@@ -847,12 +819,15 @@ class _MyAppState extends State<MyApp> {
                                   // Speech bubble
                                   Container(
                                     padding: const EdgeInsets.symmetric(
-                                        horizontal: 18, vertical: 10),
+                                      horizontal: 18,
+                                      vertical: 10,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: Colors.black.withOpacity(0.72),
                                       border: Border.all(
-                                          color: const Color(0xff00bd74),
-                                          width: 1.5),
+                                        color: const Color(0xff00bd74),
+                                        width: 1.5,
+                                      ),
                                       borderRadius: BorderRadius.circular(24),
                                     ),
                                     child: Text(
@@ -864,13 +839,13 @@ class _MyAppState extends State<MyApp> {
                                       ),
                                     ),
                                   ),
-                                  // Bubble tail triangle
+                                  // Bubble tail
                                   CustomPaint(
                                     size: const Size(16, 10),
                                     painter: _BubbleTailPainter(),
                                   ),
-                                  const SizedBox(height: 2),
-                                  // Bouncing character
+                                  const SizedBox(height: 4),
+                                  // Your character image — bouncing
                                   const _BouncingCharacter(),
                                 ],
                               ),
@@ -890,46 +865,42 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return CallbackShortcuts(
       bindings: {
-        LogicalKeySet(LogicalKeyboardKey.keyJ): ? isVideoMode
+        LogicalKeySet(LogicalKeyboardKey.keyJ): ?isVideoMode
             ? () async {
                 final t = Duration(
-                  milliseconds: (_videoPosition.inMilliseconds - 10000)
-                      .clamp(0, _videoDuration.inMilliseconds),
+                  milliseconds: (_videoPosition.inMilliseconds - 10000).clamp(
+                    0,
+                    _videoDuration.inMilliseconds,
+                  ),
                 );
                 await _player.seek(t);
                 setState(() => _videoPosition = t);
               }
             : null,
-
-        LogicalKeySet(LogicalKeyboardKey.space):? isVideoMode
+        LogicalKeySet(LogicalKeyboardKey.space): ?isVideoMode
             ? () => _togglePlayPause()
             : null,
-
         LogicalKeySet(LogicalKeyboardKey.alt, LogicalKeyboardKey.f4):
             _endSession,
-
-        LogicalKeySet(LogicalKeyboardKey.keyL):? isVideoMode
+        LogicalKeySet(LogicalKeyboardKey.keyL): ?isVideoMode
             ? () async {
                 final t = Duration(
-                  milliseconds: (_videoPosition.inMilliseconds + 10000)
-                      .clamp(0, _videoDuration.inMilliseconds),
+                  milliseconds: (_videoPosition.inMilliseconds + 10000).clamp(
+                    0,
+                    _videoDuration.inMilliseconds,
+                  ),
                 );
                 await _player.seek(t);
                 setState(() => _videoPosition = t);
               }
             : null,
-
-        LogicalKeySet(LogicalKeyboardKey.keyM):? isVideoMode
+        LogicalKeySet(LogicalKeyboardKey.keyM): ?isVideoMode
             ? () => setState(() => showVideoLibrary = !showVideoLibrary)
             : null,
-
-        LogicalKeySet(LogicalKeyboardKey.keyG): () {
-          setState(() => showVideoLibrary = !showVideoLibrary);
-        },
-
-        LogicalKeySet(LogicalKeyboardKey.keyS): () {
-          setState(() => _isSwapped = !_isSwapped);
-        },
+        LogicalKeySet(LogicalKeyboardKey.keyG): () =>
+            setState(() => showVideoLibrary = !showVideoLibrary),
+        LogicalKeySet(LogicalKeyboardKey.keyS): () =>
+            setState(() => _isSwapped = !_isSwapped),
       },
       child: Focus(
         autofocus: true,
@@ -949,7 +920,7 @@ class _MyAppState extends State<MyApp> {
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                // ── LARGE main panel ─────────────────────────
+                                // ── LARGE main panel ──────────────────────────
                                 Expanded(
                                   flex: 3,
                                   child: ClipRRect(
@@ -958,13 +929,17 @@ class _MyAppState extends State<MyApp> {
                                       decoration: BoxDecoration(
                                         color: Colors.black87,
                                         border: Border.all(
-                                            color: const Color(0xff00bd74)),
+                                          color: const Color(0xff00bd74),
+                                        ),
                                       ),
-                                      child: widget.selectedRole ==
+                                      child:
+                                          widget.selectedRole ==
                                               UserRole.therapist
                                           ? _isSwapped
-                                              ? _buildVideoPanel()
-                                              : _buildRemoteCamera(large: false)
+                                                ? _buildVideoPanel()
+                                                : _buildRemoteCamera(
+                                                    large: false,
+                                                  )
                                           : _buildRemoteCamera(),
                                     ),
                                   ),
@@ -980,14 +955,15 @@ class _MyAppState extends State<MyApp> {
                                       // TOP tile — local feed
                                       Expanded(
                                         child: ClipRRect(
-                                          borderRadius:
-                                              BorderRadius.circular(16),
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
                                           child: Container(
                                             decoration: BoxDecoration(
                                               color: Colors.black,
                                               border: Border.all(
-                                                  color: const Color(
-                                                      0xff00bd74)),
+                                                color: const Color(0xff00bd74),
+                                              ),
                                             ),
                                             child: Stack(
                                               fit: StackFit.expand,
@@ -996,18 +972,21 @@ class _MyAppState extends State<MyApp> {
                                                     ? AgoraVideoView(
                                                         controller:
                                                             VideoViewController(
-                                                          rtcEngine: _engine,
-                                                          canvas:
-                                                              const VideoCanvas(
-                                                                  uid: 0),
-                                                        ),
+                                                              rtcEngine:
+                                                                  _engine,
+                                                              canvas:
+                                                                  const VideoCanvas(
+                                                                    uid: 0,
+                                                                  ),
+                                                            ),
                                                       )
                                                     : const Center(
                                                         child:
                                                             CircularProgressIndicator(
-                                                          color: Colors.white54,
-                                                          strokeWidth: 2,
-                                                        ),
+                                                              color: Colors
+                                                                  .white54,
+                                                              strokeWidth: 2,
+                                                            ),
                                                       ),
                                                 Positioned(
                                                   bottom: 6,
@@ -1025,7 +1004,8 @@ class _MyAppState extends State<MyApp> {
                                                   child: Row(
                                                     children: [
                                                       _tinyIconBtn(
-                                                        icon: (widget.selectedRole ==
+                                                        icon:
+                                                            (widget.selectedRole ==
                                                                     UserRole
                                                                         .therapist
                                                                 ? isTherpistMuted
@@ -1033,28 +1013,34 @@ class _MyAppState extends State<MyApp> {
                                                             ? Icons.mic_off
                                                             : Icons.mic,
                                                         onTap: () {
-                                                          if (widget.selectedRole ==
+                                                          if (widget
+                                                                  .selectedRole ==
                                                               UserRole
                                                                   .therapist) {
-                                                            setState(() =>
-                                                                isTherpistMuted =
-                                                                    !isTherpistMuted);
+                                                            setState(
+                                                              () => isTherpistMuted =
+                                                                  !isTherpistMuted,
+                                                            );
                                                             _engine
                                                                 .muteLocalAudioStream(
-                                                                    isTherpistMuted);
+                                                                  isTherpistMuted,
+                                                                );
                                                           } else {
-                                                            setState(() =>
-                                                                isClientMuted =
-                                                                    !isClientMuted);
+                                                            setState(
+                                                              () => isClientMuted =
+                                                                  !isClientMuted,
+                                                            );
                                                             _engine
                                                                 .muteLocalAudioStream(
-                                                                    isClientMuted);
+                                                                  isClientMuted,
+                                                                );
                                                           }
                                                         },
                                                       ),
                                                       const SizedBox(width: 4),
                                                       _tinyIconBtn(
-                                                        icon: (widget.selectedRole ==
+                                                        icon:
+                                                            (widget.selectedRole ==
                                                                     UserRole
                                                                         .therapist
                                                                 ? isTherpistvideoMuted
@@ -1062,20 +1048,25 @@ class _MyAppState extends State<MyApp> {
                                                             ? Icons.videocam_off
                                                             : Icons.videocam,
                                                         onTap: () {
-                                                          if (widget.selectedRole ==
+                                                          if (widget
+                                                                  .selectedRole ==
                                                               UserRole
                                                                   .therapist) {
-                                                            setState(() =>
-                                                                isTherpistvideoMuted =
-                                                                    !isTherpistvideoMuted);
+                                                            setState(
+                                                              () => isTherpistvideoMuted =
+                                                                  !isTherpistvideoMuted,
+                                                            );
                                                             _engine.muteLocalVideoStream(
-                                                                isTherpistvideoMuted);
+                                                              isTherpistvideoMuted,
+                                                            );
                                                           } else {
-                                                            setState(() =>
-                                                                isClientvideoMuted =
-                                                                    !isClientvideoMuted);
+                                                            setState(
+                                                              () => isClientvideoMuted =
+                                                                  !isClientvideoMuted,
+                                                            );
                                                             _engine.muteLocalVideoStream(
-                                                                isClientvideoMuted);
+                                                              isClientvideoMuted,
+                                                            );
                                                           }
                                                         },
                                                       ),
@@ -1094,23 +1085,29 @@ class _MyAppState extends State<MyApp> {
                                       Expanded(
                                         child: GestureDetector(
                                           onDoubleTap: () => setState(
-                                              () => _isSwapped = !_isSwapped),
+                                            () => _isSwapped = !_isSwapped,
+                                          ),
                                           child: ClipRRect(
-                                            borderRadius:
-                                                BorderRadius.circular(16),
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
                                             child: Container(
                                               decoration: BoxDecoration(
                                                 color: Colors.black87,
                                                 border: Border.all(
-                                                    color: const Color(
-                                                        0xff00bd74)),
+                                                  color: const Color(
+                                                    0xff00bd74,
+                                                  ),
+                                                ),
                                               ),
-                                              child: widget.selectedRole ==
+                                              child:
+                                                  widget.selectedRole ==
                                                       UserRole.therapist
                                                   ? _isSwapped
-                                                      ? _buildRemoteCamera(
-                                                          large: true)
-                                                      : _buildVideoPanel()
+                                                        ? _buildRemoteCamera(
+                                                            large: true,
+                                                          )
+                                                        : _buildVideoPanel()
                                                   : _buildVideoPanel(),
                                             ),
                                           ),
@@ -1146,7 +1143,6 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
-  // ── Video placeholder ────────────────────────────────────────
   Widget _videoPlaceholder() {
     return Container(
       color: const Color(0xFFE8F5F0),
@@ -1154,8 +1150,7 @@ class _MyAppState extends State<MyApp> {
         child: GestureDetector(
           onTap: () => setState(() => showVideoLibrary = !showVideoLibrary),
           child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(30),
@@ -1194,7 +1189,6 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
-  // ── Live pill ────────────────────────────────────────────────
   Widget _livePill(String name) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -1227,9 +1221,7 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
-  // ── Tiny icon button ─────────────────────────────────────────
-  Widget _tinyIconBtn(
-      {required IconData icon, required VoidCallback onTap}) {
+  Widget _tinyIconBtn({required IconData icon, required VoidCallback onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -1244,7 +1236,6 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
-  // ── Bottom controls bar ──────────────────────────────────────
   Widget _bottomControlsBar() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1276,8 +1267,8 @@ class _MyAppState extends State<MyApp> {
                     _isVolumeMuted
                         ? Icons.volume_off
                         : _videoVolume < 0.4
-                            ? Icons.volume_down
-                            : Icons.volume_up,
+                        ? Icons.volume_down
+                        : Icons.volume_up,
                     color: const Color(0xff00bd74),
                     size: 22,
                   ),
@@ -1300,17 +1291,17 @@ class _MyAppState extends State<MyApp> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: _thinSlider(
-                    value: _videoPosition.inMilliseconds
-                        .toDouble()
-                        .clamp(
-                          0,
-                          _videoDuration.inMilliseconds
-                              .toDouble()
-                              .clamp(1, double.infinity),
-                        ),
-                    max: _videoDuration.inMilliseconds
-                        .toDouble()
-                        .clamp(1, double.infinity),
+                    value: _videoPosition.inMilliseconds.toDouble().clamp(
+                      0,
+                      _videoDuration.inMilliseconds.toDouble().clamp(
+                        1,
+                        double.infinity,
+                      ),
+                    ),
+                    max: _videoDuration.inMilliseconds.toDouble().clamp(
+                      1,
+                      double.infinity,
+                    ),
                     onChanged: (v) async {
                       final seekTo = Duration(milliseconds: v.toInt());
                       await _player.seek(seekTo);
@@ -1341,9 +1332,8 @@ class _MyAppState extends State<MyApp> {
                 onTap: isVideoMode
                     ? () async {
                         final t = Duration(
-                          milliseconds:
-                              (_videoPosition.inMilliseconds - 10000)
-                                  .clamp(0, _videoDuration.inMilliseconds),
+                          milliseconds: (_videoPosition.inMilliseconds - 10000)
+                              .clamp(0, _videoDuration.inMilliseconds),
                         );
                         await _player.seek(t);
                         setState(() => _videoPosition = t);
@@ -1370,9 +1360,8 @@ class _MyAppState extends State<MyApp> {
                 onTap: isVideoMode
                     ? () async {
                         final t = Duration(
-                          milliseconds:
-                              (_videoPosition.inMilliseconds + 10000)
-                                  .clamp(0, _videoDuration.inMilliseconds),
+                          milliseconds: (_videoPosition.inMilliseconds + 10000)
+                              .clamp(0, _videoDuration.inMilliseconds),
                         );
                         await _player.seek(t);
                         setState(() => _videoPosition = t);
@@ -1384,8 +1373,7 @@ class _MyAppState extends State<MyApp> {
                 label: 'LET ME SHARE',
                 style: _ActionStyle.outline,
                 onTap: isVideoMode
-                    ? () =>
-                        setState(() => showVideoLibrary = !showVideoLibrary)
+                    ? () => setState(() => showVideoLibrary = !showVideoLibrary)
                     : null,
               ),
             ],
@@ -1395,7 +1383,6 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
-  // ── Thin slider ──────────────────────────────────────────────
   Widget _thinSlider({
     required double value,
     required double max,
@@ -1415,7 +1402,6 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
-  // ── Action button ────────────────────────────────────────────
   Widget _actionButton({
     required bool isButton,
     IconData? icon,
@@ -1521,10 +1507,8 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
-  // ── Reward badges panel ──────────────────────────────────────
   Widget _rewardPanel() {
-    final visibleBadges =
-        _showAllBadges ? _badges : _badges.take(4).toList();
+    final visibleBadges = _showAllBadges ? _badges : _badges.take(4).toList();
     return Container(
       width: 110,
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
@@ -1533,8 +1517,7 @@ class _MyAppState extends State<MyApp> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.06), blurRadius: 10),
+          BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 10),
         ],
       ),
       child: Column(
@@ -1645,7 +1628,6 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
-  // ── Video library overlay ────────────────────────────────────
   Widget _videoLibraryWindow() {
     return Positioned(
       left: 60,
@@ -1657,15 +1639,13 @@ class _MyAppState extends State<MyApp> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
-            BoxShadow(
-                color: Colors.black.withOpacity(0.15), blurRadius: 20),
+            BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 20),
           ],
         ),
         child: Column(
           children: [
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
                   const Text(
@@ -1689,8 +1669,7 @@ class _MyAppState extends State<MyApp> {
               child: GridView.builder(
                 padding: const EdgeInsets.all(12),
                 itemCount: availableVideos.length,
-                gridDelegate:
-                    const SliverGridDelegateWithFixedCrossAxisCount(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 2,
                   crossAxisSpacing: 10,
                   mainAxisSpacing: 10,
@@ -1699,8 +1678,7 @@ class _MyAppState extends State<MyApp> {
                 itemBuilder: (context, index) {
                   final video = availableVideos[index];
                   return GestureDetector(
-                    onTap: () =>
-                        _selectVideo(video['url']!, video['title']!),
+                    onTap: () => _selectVideo(video['url']!, video['title']!),
                     child: Container(
                       decoration: BoxDecoration(
                         color: const Color(0xFFE8F5F0),
@@ -1745,7 +1723,6 @@ class _MyAppState extends State<MyApp> {
       await _player.pause();
       await _player.stop();
       await _engine.leaveChannel();
-
       setState(() {
         isVideoMode = false;
         selectedVideoUrl = null;
@@ -1754,7 +1731,6 @@ class _MyAppState extends State<MyApp> {
         _isSwapped = false;
         _showCharacter = false;
       });
-
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
