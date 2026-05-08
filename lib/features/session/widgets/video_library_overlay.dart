@@ -30,11 +30,11 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
   final Set<String> _expandedSubTopics = {};
 
   // ── Hover preview state ──────────────────────
-  Player? _hoverPlayer; // It is the engine that : loads videos,plays videos,pauses videos and 
-  VideoController? _hoverController; // The controller connects the player to the UI widget.
+  Player? _hoverPlayer;
+  VideoController? _hoverController;
   String? _hoverVideoUrl;
   bool _isPreviewReady = false;
-  OverlayEntry? _overlayEntry; // overlays FLOAT ABOVE everything
+  OverlayEntry? _overlayEntry;
 
   void _closeLibrary() {
     widget.videoProvider.toggleLibrary();
@@ -47,15 +47,12 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
     Offset position,
     Size itemSize,
   ) async {
-    //Remove old preview = Create new preview
-
-    _removeOverlay(); //remove existing preview
+    _removeOverlay();
 
     _hoverVideoUrl = video.url;
     _isPreviewReady = false;
-     // Create New Player
-    _hoverPlayer = Player(); //creates a temporary mini player
-    //Create Controller
+
+    _hoverPlayer = Player();
     _hoverController = VideoController(_hoverPlayer!);
 
     await _hoverPlayer!.setVolume(0);
@@ -70,7 +67,6 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
     const previewWidth = 480.0;
     const previewHeight = 300.0;
 
-    // ── Perfectly centered on screen ────────────
     final double left = (screenSize.width / 2) - (previewWidth / 2);
     final double top = (screenSize.height / 2) - (previewHeight / 2);
 
@@ -118,13 +114,16 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
     super.dispose();
   }
 
+  // ── Filtered topics from API data ────────────
   List<MainTopic> get _filteredTopics {
-    if (_searchQuery.isEmpty) return allTopics;
+    final source = widget.videoProvider.topics; // ← API data
+
+    if (_searchQuery.isEmpty) return source;
 
     final query = _searchQuery.toLowerCase();
     List<MainTopic> result = [];
 
-    for (final mainTopic in allTopics) {
+    for (final mainTopic in source) {
       final matchingSubTopics = <SubTopic>[];
 
       for (final subTopic in mainTopic.subTopics) {
@@ -237,196 +236,245 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
 
             // ── Expandable List ───────────────────────
             Expanded(
-              child: _filteredTopics.isEmpty
+              child: widget.videoProvider.isLoadingTopics
                   ? const Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.video_library_outlined,
-                            size: 40,
-                            color: Color(0xFFB2DFDB),
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            'No videos found',
-                            style: TextStyle(
-                              color: Color(0xFF9E9E9E),
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF00796B),
                       ),
                     )
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      itemCount: _filteredTopics.length,
-                      itemBuilder: (_, mainIndex) {
-                        final mainTopic = _filteredTopics[mainIndex];
-                        final isMainExpanded = _expandedMainTopics.contains(
-                          mainTopic.title,
-                        );
-
-                        return Column(
-                          children: [
-                            // ── MainTopic Row ─────────────
-                            GestureDetector(
-                              onTap: () => setState(() {
-                                if (isMainExpanded) {
-                                  _expandedMainTopics.remove(mainTopic.title);
-                                } else {
-                                  _expandedMainTopics.add(mainTopic.title);
-                                }
-                              }),
-                              child: Container(
-                                margin: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 4,
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 12,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF00796B),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.folder_outlined,
-                                      color: Colors.white,
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        mainTopic.title,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    ),
-                                    Icon(
-                                      isMainExpanded
-                                          ? Icons.keyboard_arrow_up
-                                          : Icons.keyboard_arrow_down,
-                                      color: Colors.white,
-                                      size: 20,
-                                    ),
-                                  ],
+                  : widget.videoProvider.topicsError != null
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.wifi_off_outlined,
+                                size: 40,
+                                color: Color(0xFFB2DFDB),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                widget.videoProvider.topicsError!,
+                                style: const TextStyle(
+                                  color: Color(0xFF9E9E9E),
+                                  fontSize: 14,
                                 ),
                               ),
-                            ),
-
-                            // ── SubTopics ─────────────────
-                            if (isMainExpanded)
-                              ...mainTopic.subTopics.map((subTopic) {
-                                final subKey =
-                                    '${mainTopic.title}_${subTopic.title}';
-                                final isSubExpanded = _expandedSubTopics
-                                    .contains(subKey);
+                              const SizedBox(height: 12),
+                              TextButton(
+                                onPressed: widget.videoProvider.fetchTopics,
+                                child: const Text(
+                                  'Retry',
+                                  style: TextStyle(color: Color(0xFF00796B)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : _filteredTopics.isEmpty
+                          ? const Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.video_library_outlined,
+                                    size: 40,
+                                    color: Color(0xFFB2DFDB),
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'No videos found',
+                                    style: TextStyle(
+                                      color: Color(0xFF9E9E9E),
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : ListView.builder(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              itemCount: _filteredTopics.length,
+                              itemBuilder: (_, mainIndex) {
+                                final mainTopic = _filteredTopics[mainIndex];
+                                final isMainExpanded =
+                                    _expandedMainTopics.contains(
+                                  mainTopic.title,
+                                );
 
                                 return Column(
                                   children: [
-                                    // SubTopic Row
+                                    // ── MainTopic Row ─────────────
                                     GestureDetector(
                                       onTap: () => setState(() {
-                                        if (isSubExpanded) {
-                                          _expandedSubTopics.remove(subKey);
+                                        if (isMainExpanded) {
+                                          _expandedMainTopics
+                                              .remove(mainTopic.title);
                                         } else {
-                                          _expandedSubTopics.add(subKey);
+                                          _expandedMainTopics
+                                              .add(mainTopic.title);
                                         }
                                       }),
                                       child: Container(
-                                        margin: const EdgeInsets.only(
-                                          left: 28,
-                                          right: 12,
-                                          top: 4,
+                                        margin: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 4,
                                         ),
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 14,
-                                          vertical: 10,
+                                          vertical: 12,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFFE0F2F1),
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
-                                          border: Border.all(
-                                            color: const Color(0xFF80CBC4),
-                                            width: 1,
-                                          ),
+                                          color: const Color(0xFF00796B),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
                                         ),
                                         child: Row(
                                           children: [
                                             const Icon(
-                                              Icons.folder_open_outlined,
-                                              color: Color(0xFF00796B),
-                                              size: 18,
+                                              Icons.folder_outlined,
+                                              color: Colors.white,
+                                              size: 20,
                                             ),
-                                            const SizedBox(width: 8),
+                                            const SizedBox(width: 10),
                                             Expanded(
                                               child: Text(
-                                                subTopic.title,
+                                                mainTopic.title,
                                                 style: const TextStyle(
-                                                  color: Color(0xFF004D40),
-                                                  fontWeight: FontWeight.w600,
-                                                  fontSize: 13,
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 14,
                                                 ),
                                               ),
                                             ),
-                                            Text(
-                                              '${subTopic.videos.length} video${subTopic.videos.length > 1 ? 's' : ''}',
-                                              style: const TextStyle(
-                                                color: Color(0xFF80CBC4),
-                                                fontSize: 11,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 6),
                                             Icon(
-                                              isSubExpanded
+                                              isMainExpanded
                                                   ? Icons.keyboard_arrow_up
                                                   : Icons.keyboard_arrow_down,
-                                              color: const Color(0xFF00796B),
-                                              size: 18,
+                                              color: Colors.white,
+                                              size: 20,
                                             ),
                                           ],
                                         ),
                                       ),
                                     ),
 
-                                    // ── Video Items with Hover Preview ──
-                                    if (isSubExpanded)
-                                      ...subTopic.videos.map((video) {
-                                        return VideoHoverItem(
-                                          video: video,
-                                          onTap: () {
-                                            _removeOverlay();
-                                            widget.videoProvider.selectVideo(
-                                              video,
-                                            );
-                                            _closeLibrary();
-                                          },
-                                          onHoverEnter: (position, size) {
-                                            _showHoverPreview(
-                                              video,
-                                              position,
-                                              size,
-                                            );
-                                          },
-                                          onHoverExit: _removeOverlay,
+                                    // ── SubTopics ─────────────────
+                                    if (isMainExpanded)
+                                      ...mainTopic.subTopics.map((subTopic) {
+                                        final subKey =
+                                            '${mainTopic.title}_${subTopic.title}';
+                                        final isSubExpanded =
+                                            _expandedSubTopics.contains(subKey);
+
+                                        return Column(
+                                          children: [
+                                            // SubTopic Row
+                                            GestureDetector(
+                                              onTap: () => setState(() {
+                                                if (isSubExpanded) {
+                                                  _expandedSubTopics
+                                                      .remove(subKey);
+                                                } else {
+                                                  _expandedSubTopics.add(subKey);
+                                                }
+                                              }),
+                                              child: Container(
+                                                margin: const EdgeInsets.only(
+                                                  left: 28,
+                                                  right: 12,
+                                                  top: 4,
+                                                ),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                  horizontal: 14,
+                                                  vertical: 10,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color:
+                                                      const Color(0xFFE0F2F1),
+                                                  borderRadius:
+                                                      BorderRadius.circular(10),
+                                                  border: Border.all(
+                                                    color: const Color(
+                                                        0xFF80CBC4),
+                                                    width: 1,
+                                                  ),
+                                                ),
+                                                child: Row(
+                                                  children: [
+                                                    const Icon(
+                                                      Icons
+                                                          .folder_open_outlined,
+                                                      color: Color(0xFF00796B),
+                                                      size: 18,
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Expanded(
+                                                      child: Text(
+                                                        subTopic.title,
+                                                        style: const TextStyle(
+                                                          color:
+                                                              Color(0xFF004D40),
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                          fontSize: 13,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    Text(
+                                                      '${subTopic.videos.length} video${subTopic.videos.length > 1 ? 's' : ''}',
+                                                      style: const TextStyle(
+                                                        color:
+                                                            Color(0xFF80CBC4),
+                                                        fontSize: 11,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    Icon(
+                                                      isSubExpanded
+                                                          ? Icons
+                                                              .keyboard_arrow_up
+                                                          : Icons
+                                                              .keyboard_arrow_down,
+                                                      color: const Color(
+                                                          0xFF00796B),
+                                                      size: 18,
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+
+                                            // ── Video Items with Hover Preview ──
+                                            if (isSubExpanded)
+                                              ...subTopic.videos.map((video) {
+                                                return VideoHoverItem(
+                                                  video: video,
+                                                  onTap: () {
+                                                    _removeOverlay();
+                                                    widget.videoProvider
+                                                        .selectVideo(video);
+                                                    _closeLibrary();
+                                                  },
+                                                  onHoverEnter:
+                                                      (position, size) {
+                                                    _showHoverPreview(
+                                                      video,
+                                                      position,
+                                                      size,
+                                                    );
+                                                  },
+                                                  onHoverExit: _removeOverlay,
+                                                );
+                                              }),
+                                          ],
                                         );
                                       }),
                                   ],
                                 );
-                              }),
-                          ],
-                        );
-                      },
-                    ),
+                              },
+                            ),
             ),
           ],
         ),
@@ -434,5 +482,3 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
     );
   }
 }
-
-

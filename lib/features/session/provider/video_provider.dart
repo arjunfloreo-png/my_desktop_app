@@ -1,237 +1,59 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
+import '../models/therpy_video_item_model.dart';
 import '../models/video_item.dart';
 
+// ─────────────────────────────────────────────────────────────
+// HELPER: Convert API response → MainTopic list for the UI
+// ─────────────────────────────────────────────────────────────
+List<MainTopic> _mapApiToTopics(TherapyVideoItemModel model) {
+  final List<MainTopic> result = [];
 
-final List<MainTopic> allTopics = [
+  for (final therapyMsg in model.message) {
+    if (therapyMsg.topics.isEmpty) continue;
 
-  // 1. Speech Therapy
-  MainTopic(
-    title: 'Speech Therapy',
-    subTopics: [
-      SubTopic(
-        title: 'Articulation Therapy',
-        videos: [
-          VideoItem(
-            title: 'Walk Video',
-            url: 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/walk_animation.mp4',
-            thumbnail: 'https://picsum.photos/300/200?1',
-          ),
-        ],
-      ),
-      SubTopic(
-        title: 'Phonology',
-        videos: [
-          VideoItem(
-            title: 'Fly Video',
-            url: 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/fly_animation.mp4',
-            thumbnail: 'https://picsum.photos/300/200?4',
-          ),
-        ],
-      ),
-      SubTopic(
-        title: 'Childhood Apraxia of Speech (CAS)',
-        videos: [
-          VideoItem(
-            title: 'Dance Video',
-            url: 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/dance_animation.mp4',
-            thumbnail: 'https://picsum.photos/300/200?5',
-          ),
-        ],
-      ),
-      SubTopic(
-        title: 'Dysarthria',
-        videos: [
-          VideoItem(
-            title: 'Climb Video',
-            url: 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/climb_animation.mp4',
-            thumbnail: 'https://picsum.photos/300/200?6',
-          ),
-        ],
-      ),
-    ],
-  ),
+    final List<SubTopic> subTopics = [];
 
-  // 2. Occupational Therapy
-  MainTopic(
-    title: 'Occupational Therapy',
-    subTopics: [
-      SubTopic(
-        title: 'Sensory Integration',
-        videos: [
-          VideoItem(
-            title: 'Stomp Video',
-            url: 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/stomp_animation.mp4',
-            thumbnail: 'https://picsum.photos/300/200?2',
-          ),
-        ],
-      ),
-      SubTopic(
-        title: 'Fine Motor Skills',
-        videos: [
-          VideoItem(
-            title: 'Stand Video',
-            url: 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/stand_animation.mp4',
-            thumbnail: 'https://picsum.photos/300/200?3',
-          ),
-        ],
-      ),
-      SubTopic(
-        title: 'Activities of Daily Living (ADL)',
-        videos: [
-          VideoItem(
-            title: 'Walk Video',
-            url: 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/walk_animation.mp4',
-            thumbnail: 'https://picsum.photos/300/200?1',
-          ),
-        ],
-      ),
-      SubTopic(
-        title: 'Cognitive Rehabilitation',
-        videos: [
-          VideoItem(
-            title: 'Dance Video',
-            url: 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/dance_animation.mp4',
-            thumbnail: 'https://picsum.photos/300/200?5',
-          ),
-        ],
-      ),
-    ],
-  ),
+    for (final topicEl in therapyMsg.topics) {
+      for (final subtopicEl in topicEl.subtopics) {
+        final videos = subtopicEl.contents.map((c) {
+          return VideoItem(
+            title: c.title,
+            url: c.videoUrl,
+            thumbnail: '',
+          );
+        }).toList();
 
-  // 3. Applied Behavior Analysis
-  MainTopic(
-    title: 'Applied Behavior Analysis',
-    subTopics: [
-      SubTopic(
-        title: 'Discrete Trial Training (DTT)',
-        videos: [
-          VideoItem(
-            title: 'Climb Video',
-            url: 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/climb_animation.mp4',
-            thumbnail: 'https://picsum.photos/300/200?6',
-          ),
-        ],
-      ),
-      SubTopic(
-        title: 'Natural Environment Teaching (NET)',
-        videos: [
-          VideoItem(
-            title: 'Fly Video',
-            url: 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/fly_animation.mp4',
-            thumbnail: 'https://picsum.photos/300/200?4',
-          ),
-        ],
-      ),
-      SubTopic(
-        title: 'Verbal Behavior Therapy',
-        videos: [
-          VideoItem(
-            title: 'Stomp Video',
-            url: 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/stomp_animation.mp4',
-            thumbnail: 'https://picsum.photos/300/200?2',
-          ),
-        ],
-      ),
-      SubTopic(
-        title: 'Behavior Intervention Plans (BIP)',
-        videos: [
-          VideoItem(
-            title: 'Stand Video',
-            url: 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/stand_animation.mp4',
-            thumbnail: 'https://picsum.photos/300/200?3',
-          ),
-        ],
-      ),
-    ],
-  ),
+        if (videos.isEmpty) continue;
 
-  // 4. Psychology / Counseling
-  MainTopic(
-    title: 'Psychology/Counseling',
-    subTopics: [
-      SubTopic(
-        title: 'Cognitive Behavioral Therapy (CBT)',
-        videos: [
-          VideoItem(
-            title: 'Walk Video',
-            url: 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/walk_animation.mp4',
-            thumbnail: 'https://picsum.photos/300/200?1',
-          ),
-        ],
-      ),
-      SubTopic(
-        title: 'Play Therapy',
-        videos: [
-          VideoItem(
-            title: 'Dance Video',
-            url: 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/dance_animation.mp4',
-            thumbnail: 'https://picsum.photos/300/200?5',
-          ),
-        ],
-      ),
-      SubTopic(
-        title: 'Family Therapy',
-        videos: [
-          VideoItem(
-            title: 'Climb Video',
-            url: 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/climb_animation.mp4',
-            thumbnail: 'https://picsum.photos/300/200?6',
-          ),
-        ],
-      ),
-      SubTopic(
-        title: 'Mindfulness & Stress Management',
-        videos: [
-          VideoItem(
-            title: 'Fly Video',
-            url: 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/fly_animation.mp4',
-            thumbnail: 'https://picsum.photos/300/200?4',
-          ),
-        ],
-      ),
-    ],
-  ),
+        subTopics.add(SubTopic(
+          title:
+              '${topicEl.topic.topicName} › ${subtopicEl.subtopic.subTopicName}',
+          videos: videos,
+        ));
+      }
+    }
 
-];
- const List<VideoItem> kAvailableVideos = [
-  VideoItem(
-    title: 'Walk Video',
-    url: 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/walk_animation.mp4',
-    thumbnail: 'https://picsum.photos/300/200?1',
-  ),
-   VideoItem(
-    title: 'Fly Video',
-    url: 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/fly_animation.mp4',
-    thumbnail: 'https://picsum.photos/300/200?4',
-  ),
-  VideoItem(
-    title: 'Dance Video',
-    url: 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/dance_animation.mp4',
-    thumbnail: 'https://picsum.photos/300/200?5',
-  ),
-  VideoItem(
-    title: 'Climb Video',
-    url: 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/climb_animation.mp4',
-    thumbnail: 'https://picsum.photos/300/200?6',
-  ),
-  VideoItem(
-    title: 'Stomp Video',
-    url: 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/stomp_animation.mp4',
-    thumbnail: 'https://picsum.photos/300/200?2',
-  ),
-  VideoItem(
-    title: 'Stand Video',
-    url: 'https://cdn.jsdelivr.net/gh/arjunfloreo-png/speech_animation_1@main/stand_animation.mp4',
-    thumbnail: 'https://picsum.photos/300/200?3',
-  ),
- 
-];
+    if (subTopics.isEmpty) continue;
 
+    result.add(MainTopic(
+      title: therapyMsg.therapy.therapyType,
+      subTopics: subTopics,
+    ));
+  }
+
+  return result;
+}
+
+// ─────────────────────────────────────────────────────────────
+// VIDEO PROVIDER
+// ─────────────────────────────────────────────────────────────
 class VideoProvider extends ChangeNotifier {
   late final Player _player;
   late final VideoController videoController;
@@ -241,6 +63,15 @@ class VideoProvider extends ChangeNotifier {
   StreamSubscription? _bufferSub;
   StreamSubscription? _playSub;
 
+  // ── Library data from API ──────────────────
+  List<MainTopic> topics = [];
+  bool isLoadingTopics = false;
+  String? topicsError;
+
+  static const String _apiUrl =
+      'https://only-clapped-bride.ngrok-free.dev/api/method/floreo.api.therapist_api.v1.get_full_structure';
+
+  // ── Playback state ─────────────────────────
   String? selectedVideoUrl;
   String? selectedThumbnail;
 
@@ -252,7 +83,7 @@ class VideoProvider extends ChangeNotifier {
   Duration position = Duration.zero;
   Duration duration = Duration.zero;
 
-  double volume = 1.0;
+  double volume   = 1.0;
   bool isVolMuted = false;
 
   VideoProvider() {
@@ -282,21 +113,59 @@ class VideoProvider extends ChangeNotifier {
       isVideoPlaying = playing;
       notifyListeners();
     });
+
+    // Auto-fetch topics on creation
+    fetchTopics();
   }
 
   Player get player => _player;
 
   // ─────────────────────────────────────────────
-  // 🔥 YouTube detection
+  // FETCH TOPICS FROM API
+  // ─────────────────────────────────────────────
+  Future<void> fetchTopics() async {
+    isLoadingTopics = true;
+    topicsError = null;
+    notifyListeners();
+
+    try {
+      final response = await http.get(
+        Uri.parse(_apiUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body) as Map<String, dynamic>;
+        final model = TherapyVideoItemModel.fromJson(json);
+        topics = _mapApiToTopics(model);
+        topicsError = null;
+      } else {
+        topicsError = 'Server error: ${response.statusCode}';
+        debugPrint('fetchTopics HTTP error: ${response.statusCode}');
+      }
+    } catch (e) {
+      topicsError = 'Failed to load videos. Please retry.';
+      debugPrint('fetchTopics error: $e');
+    } finally {
+      isLoadingTopics = false;
+      notifyListeners();
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // YouTube detection
   // ─────────────────────────────────────────────
   bool get isYoutube {
     if (selectedVideoUrl == null) return false;
     return selectedVideoUrl!.contains('youtube.com') ||
-           selectedVideoUrl!.contains('youtu.be');
+        selectedVideoUrl!.contains('youtu.be');
   }
 
   // ─────────────────────────────────────────────
-  // SELECT FROM GRID (MP4 only)
+  // SELECT FROM LIBRARY
   // ─────────────────────────────────────────────
   Future<void> selectVideo(VideoItem item) async {
     isBuffering = true;
@@ -324,18 +193,17 @@ class VideoProvider extends ChangeNotifier {
       selectedVideoUrl  = url;
       selectedThumbnail = _extractThumbnail(url);
 
-      // ✅ YOUTUBE → skip media_kit
+      // YOUTUBE → skip media_kit
       if (url.contains('youtube.com') || url.contains('youtu.be')) {
         isVideoMode    = true;
         isVideoPlaying = true;
         showLibrary    = false;
         isBuffering    = false;
-
         notifyListeners();
         return;
       }
 
-      // ✅ NORMAL VIDEO
+      // NORMAL VIDEO
       await _player.open(Media(url), play: true);
 
       isVideoMode = true;
@@ -354,8 +222,7 @@ class VideoProvider extends ChangeNotifier {
     try {
       final uri = Uri.parse(url);
 
-      if (uri.host.contains('youtube.com') ||
-          uri.host.contains('youtu.be')) {
+      if (uri.host.contains('youtube.com') || uri.host.contains('youtu.be')) {
         String? id;
 
         if (uri.host.contains('youtu.be')) {
@@ -427,10 +294,10 @@ class VideoProvider extends ChangeNotifier {
     await _player.pause();
     await _player.stop();
 
-    isVideoMode = false;
+    isVideoMode    = false;
     isVideoPlaying = false;
-    isBuffering = false;
-    selectedVideoUrl = null;
+    isBuffering    = false;
+    selectedVideoUrl  = null;
     selectedThumbnail = null;
 
     notifyListeners();
@@ -451,8 +318,4 @@ class VideoProvider extends ChangeNotifier {
     _player.dispose();
     super.dispose();
   }
-
-
-
-  
 }

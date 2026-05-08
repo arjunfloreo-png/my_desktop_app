@@ -5,13 +5,11 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   agora_rtc_engine
   desktop_webview_window
-  flutter_inappwebview_windows
   iris_method_channel
   media_kit_libs_windows_video
   media_kit_video
   permission_handler_windows
   volume_controller
-  webview_windows
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
