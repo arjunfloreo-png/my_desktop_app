@@ -1,6 +1,3 @@
-
-
-// ── Reward badge model ───────────────────────────────────────
 import 'package:flutter/material.dart';
 
 class RewardBadge {
@@ -8,6 +5,7 @@ class RewardBadge {
   final String emoji;
   final Color bgColor;
   final String name;
+
   RewardBadge({
     required this.label,
     required this.emoji,

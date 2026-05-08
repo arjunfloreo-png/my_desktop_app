@@ -1,11 +1,7 @@
-
-
-// ── Flying badge animation model ─────────────────────────────
 import 'package:flutter/material.dart';
+import 'reward_badge.dart';
 
-import 'reward_badge_model.dart';
-
-class _FlyingBadge {
+class FlyingBadge {
   final int id;
   final RewardBadge badge;
   final AnimationController controller;
@@ -13,7 +9,7 @@ class _FlyingBadge {
   final Animation<double> opacity;
   final Animation<double> scale;
 
-  _FlyingBadge({
+  FlyingBadge({
     required this.id,
     required this.badge,
     required this.controller,

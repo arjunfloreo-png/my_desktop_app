@@ -1,0 +1,1 @@
+enum UserRole { therapist, client }
