@@ -140,6 +140,7 @@ function onYouTubeIframeAPIReady() {
 
       onReady: function(e) {
 
+        // FIX: Start muted so autoplay works, then unmute after playback begins
         e.target.mute();
 
         setTimeout(() => {
@@ -150,8 +151,14 @@ function onYouTubeIframeAPIReady() {
 
       onStateChange: function(e) {
 
-        // PLAYING
+        // PLAYING — unmute now that playback has started
         if (e.data === 1) {
+
+          // FIX: Unmute and restore volume once video is actually playing
+          if (player.isMuted()) {
+            player.unMute();
+            player.setVolume(100);
+          }
 
           window.chrome.webview.postMessage(
             JSON.stringify({

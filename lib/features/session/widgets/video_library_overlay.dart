@@ -119,14 +119,33 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
   
 
   // ── External link info card ──────────────────
-  void _showExternalInfoOverlay(VideoItem video) {
-    if (!mounted) return;
+   // ── External / YouTube preview ──────────────────
+void _showExternalInfoOverlay(VideoItem video) {
+  if (!mounted) return;
+
+  final url = video.url.toLowerCase();
+
+  // Detect YouTube links
+  final isYoutube =
+      url.contains('youtube.com') ||
+      url.contains('youtu.be');
+
+  if (isYoutube) {
+    // Show mini YouTube preview
+    _insertOverlay(
+      child: _YoutubePreviewCard(video: video),
+      width: 280,
+      height: 180,
+    );
+  } else {
+    // Fallback normal external card
     _insertOverlay(
       child: _ExternalLinkCard(video: video),
       width: 280,
       height: 130,
     );
   }
+}
 
   // ── Shared overlay inserter ──────────────────
   void _insertOverlay({
@@ -1023,3 +1042,4 @@ class _YoutubePreviewCardState
     );
   }
 }
+
