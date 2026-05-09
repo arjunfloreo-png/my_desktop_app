@@ -29,7 +29,7 @@ class _SessionScreenState extends State<SessionScreen>
   late final SessionProvider _session;
   late final VideoProvider _video;
   late final RewardProvider _reward;
-  final FocusNode _screenFocusNode = FocusNode(); // ADD
+  final FocusNode _screenFocusNode = FocusNode();
 
   final _random = Random();
   bool _showCharacter = false;
@@ -98,7 +98,7 @@ class _SessionScreenState extends State<SessionScreen>
     _session.dispose();
     _video.dispose();
     _reward.dispose();
-    _screenFocusNode.dispose(); // ADD
+    _screenFocusNode.dispose();
     super.dispose();
   }
 
@@ -124,7 +124,7 @@ class _SessionScreenState extends State<SessionScreen>
       },
       child: Focus(
         autofocus: true,
-        focusNode: _screenFocusNode, // ADD
+        focusNode: _screenFocusNode,
         child: Scaffold(
           backgroundColor: const Color(0xFFE8F5F0),
           body: Stack(
@@ -133,7 +133,8 @@ class _SessionScreenState extends State<SessionScreen>
                 padding: const EdgeInsets.all(12),
                 child: Column(
                   children: [
-                    Expanded(child: _mainLayout()),
+                    // ✅ Fixed — pass context to _mainLayout
+                    Expanded(child: _mainLayout(context)),
                     const SizedBox(height: 10),
                     if (widget.role == UserRole.therapist)
                       ControlsBar(
@@ -150,7 +151,9 @@ class _SessionScreenState extends State<SessionScreen>
                 Positioned.fill(
                   child: GestureDetector(
                     onTap: _reward.toggleDrawer,
-                    child: Container(color: Colors.black.withOpacity(0.25)),
+                    child: Container(
+                      color: Colors.black.withOpacity(0.25),
+                    ),
                   ),
                 ),
 
@@ -166,11 +169,11 @@ class _SessionScreenState extends State<SessionScreen>
                   ),
                 ),
 
-              // Video library
+              // ✅ Fixed — removed context parameter (not needed)
               if (_video.showLibrary)
                 VideoLibraryOverlay(
                   videoProvider: _video,
-                  onClose: () => _screenFocusNode.requestFocus(), // ADD
+                  onClose: () => _screenFocusNode.requestFocus(),
                 ),
 
               // Flying badges
@@ -182,7 +185,8 @@ class _SessionScreenState extends State<SessionScreen>
     );
   }
 
-  Widget _mainLayout() {
+  // ✅ Fixed — accept context as parameter
+  Widget _mainLayout(BuildContext context) {
     final isTherapist = widget.role == UserRole.therapist;
 
     Widget mainPanel = ClipRRect(
@@ -194,12 +198,12 @@ class _SessionScreenState extends State<SessionScreen>
         ),
         child: isTherapist
             ? (_session.isSwapped
-                  ? VideoPanel(
-                      videoProvider: _video,
-                      showCharacter: _showCharacter,
-                      currentPrompt: _currentPrompt,
-                    )
-                  : CameraTile(session: _session, isRemote: true))
+                ? VideoPanel(
+                    videoProvider: _video,
+                    showCharacter: _showCharacter,
+                    currentPrompt: _currentPrompt,
+                  )
+                : CameraTile(session: _session, isRemote: true))
             : CameraTile(session: _session, isRemote: true),
       ),
     );
@@ -213,12 +217,12 @@ class _SessionScreenState extends State<SessionScreen>
         ),
         child: isTherapist
             ? (_session.isSwapped
-                  ? CameraTile(session: _session, isRemote: true, large: true)
-                  : VideoPanel(
-                      videoProvider: _video,
-                      showCharacter: _showCharacter,
-                      currentPrompt: _currentPrompt,
-                    ))
+                ? CameraTile(session: _session, isRemote: true, large: true)
+                : VideoPanel(
+                    videoProvider: _video,
+                    showCharacter: _showCharacter,
+                    currentPrompt: _currentPrompt,
+                  ))
             : VideoPanel(
                 videoProvider: _video,
                 showCharacter: _showCharacter,
@@ -243,6 +247,7 @@ class _SessionScreenState extends State<SessionScreen>
       children: [
         Expanded(flex: 3, child: mainPanel),
         const SizedBox(width: 10),
+        // ✅ Fixed — context now properly passed
         SizedBox(
           width: MediaQuery.sizeOf(context).width * 0.2,
           child: Column(

@@ -9,9 +9,6 @@ import 'package:media_kit_video/media_kit_video.dart';
 import '../models/therpy_video_item_model.dart';
 import '../models/video_item.dart';
 
-// ─────────────────────────────────────────────────────────────
-// HELPER: Convert API response → MainTopic list for the UI
-// ─────────────────────────────────────────────────────────────
 List<MainTopic> _mapApiToTopics(TherapyVideoItemModel model) {
   final List<MainTopic> result = [];
 
@@ -22,40 +19,74 @@ List<MainTopic> _mapApiToTopics(TherapyVideoItemModel model) {
 
     for (final topicEl in therapyMsg.topics) {
       for (final subtopicEl in topicEl.subtopics) {
-        final videos = subtopicEl.contents.map((c) {
-          return VideoItem(
-            title: c.title,
-            url: c.videoUrl,
-            thumbnail: '',
+        final videos = <VideoItem>[];
+
+        for (final c in subtopicEl.contents) {
+          final rawType =
+              (c.videoType).trim().toLowerCase();
+
+          final vType = rawType == 'mp4'
+              ? VideoType.mp4
+              : VideoType.external;
+
+          String url;
+
+          if (vType == VideoType.mp4) {
+            url = _nonEmpty(c.videoUrl) ?? '';
+          } else {
+            url = _nonEmpty(c.videoLink) ??
+                _nonEmpty(c.videoUrl) ??
+                '';
+          }
+
+          if (url.isEmpty) continue;
+
+          videos.add(
+            VideoItem(
+              title: c.title.isNotEmpty
+                  ? c.title
+                  : c.name,
+              url: url,
+              thumbnail: '',
+              videoType: vType,
+            ),
           );
-        }).toList();
+        }
 
         if (videos.isEmpty) continue;
 
-        subTopics.add(SubTopic(
-          title:
-              '${topicEl.topic.topicName} › ${subtopicEl.subtopic.subTopicName}',
-          videos: videos,
-        ));
+        subTopics.add(
+          SubTopic(
+            title:
+                '${topicEl.topic.topicName} › ${subtopicEl.subtopic.subTopicName}',
+            videos: videos,
+          ),
+        );
       }
     }
 
     if (subTopics.isEmpty) continue;
 
-    result.add(MainTopic(
-      title: therapyMsg.therapy.therapyType,
-      subTopics: subTopics,
-    ));
+    result.add(
+      MainTopic(
+        title:
+            therapyMsg.therapy.therapyType,
+        subTopics: subTopics,
+      ),
+    );
   }
 
   return result;
 }
 
-// ─────────────────────────────────────────────────────────────
-// VIDEO PROVIDER
-// ─────────────────────────────────────────────────────────────
+String? _nonEmpty(String? s) =>
+    (s != null && s.trim().isNotEmpty)
+        ? s.trim()
+        : null;
+
 class VideoProvider extends ChangeNotifier {
   late final Player _player;
+
   late final VideoController videoController;
 
   StreamSubscription? _posSub;
@@ -63,170 +94,260 @@ class VideoProvider extends ChangeNotifier {
   StreamSubscription? _bufferSub;
   StreamSubscription? _playSub;
 
-  // ── Library data from API ──────────────────
   List<MainTopic> topics = [];
+
   bool isLoadingTopics = false;
+
   String? topicsError;
 
   static const String _apiUrl =
       'https://only-clapped-bride.ngrok-free.dev/api/method/floreo.api.therapist_api.v1.get_full_structure';
 
-  // ── Playback state ─────────────────────────
   String? selectedVideoUrl;
   String? selectedThumbnail;
 
-  bool isVideoMode    = false;
+  VideoType? _currentVideoType;
+
+  bool isVideoMode = false;
   bool isVideoPlaying = false;
-  bool showLibrary    = false;
-  bool isBuffering    = false;
+  bool showLibrary = false;
+  bool isBuffering = false;
 
   Duration position = Duration.zero;
   Duration duration = Duration.zero;
 
-  double volume   = 1.0;
+  // ONLY FOR SLIDER/TIMER UI
+  final ValueNotifier<int> progressNotifier =
+      ValueNotifier(0);
+
+  double volume = 1.0;
+
   bool isVolMuted = false;
+
+  // EXTERNAL CONTROLS
+  Future<void> Function()? externalPlay;
+  Future<void> Function()? externalPause;
+  Future<void> Function()? externalStop;
+
+  Future<void> Function(Duration position)?
+      externalSeek;
 
   VideoProvider() {
     _player = Player();
-    videoController = VideoController(_player);
 
-    // Position listener
-    _posSub = _player.stream.position.listen((p) {
-      position = p;
-      notifyListeners();
+    videoController =
+        VideoController(_player);
+
+    // MP4 POSITION
+    _posSub =
+        _player.stream.position.listen((p) {
+      if (!isExternal) {
+        position = p;
+
+        // ONLY UPDATE SLIDER
+        progressNotifier.value++;
+      }
     });
 
-    // Duration listener
-    _durSub = _player.stream.duration.listen((d) {
-      duration = d;
-      notifyListeners();
+    // MP4 DURATION
+    _durSub =
+        _player.stream.duration.listen((d) {
+      if (!isExternal) {
+        duration = d;
+
+        progressNotifier.value++;
+      }
     });
 
-    // Buffering listener
-    _bufferSub = _player.stream.buffering.listen((b) {
+    // BUFFERING
+    _bufferSub =
+        _player.stream.buffering.listen((b) {
       isBuffering = b;
+
       notifyListeners();
     });
 
-    // Playing state listener
-    _playSub = _player.stream.playing.listen((playing) {
-      isVideoPlaying = playing;
-      notifyListeners();
+    // PLAY / PAUSE
+    _playSub =
+        _player.stream.playing.listen((playing) {
+      if (!isExternal) {
+        isVideoPlaying = playing;
+
+        notifyListeners();
+      }
     });
 
-    // Auto-fetch topics on creation
     fetchTopics();
   }
 
   Player get player => _player;
 
-  // ─────────────────────────────────────────────
-  // FETCH TOPICS FROM API
-  // ─────────────────────────────────────────────
+  bool get isExternal =>
+      _currentVideoType ==
+      VideoType.external;
+
+  bool get isYoutube => isExternal;
+
+  // EXTERNAL PLAY STATE
+  void setExternalPlayingState(
+    bool playing,
+  ) {
+    if (!isExternal) return;
+
+    // PREVENT EXTRA REBUILDS
+    if (isVideoPlaying == playing) {
+      return;
+    }
+
+    isVideoPlaying = playing;
+
+    notifyListeners();
+  }
+
+  // FETCH API
   Future<void> fetchTopics() async {
     isLoadingTopics = true;
+
     topicsError = null;
+
     notifyListeners();
 
     try {
       final response = await http.get(
         Uri.parse(_apiUrl),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
       );
 
       if (response.statusCode == 200) {
-        final json = jsonDecode(response.body) as Map<String, dynamic>;
-        final model = TherapyVideoItemModel.fromJson(json);
+        final jsonMap =
+            jsonDecode(response.body)
+                as Map<String, dynamic>;
+
+        final model =
+            TherapyVideoItemModel.fromJson(
+          jsonMap,
+        );
+
         topics = _mapApiToTopics(model);
-        topicsError = null;
       } else {
-        topicsError = 'Server error: ${response.statusCode}';
-        debugPrint('fetchTopics HTTP error: ${response.statusCode}');
+        topicsError =
+            'Server error: ${response.statusCode}';
       }
     } catch (e) {
-      topicsError = 'Failed to load videos. Please retry.';
-      debugPrint('fetchTopics error: $e');
+      topicsError =
+          'Failed to load videos';
     } finally {
       isLoadingTopics = false;
+
       notifyListeners();
     }
   }
 
-  // ─────────────────────────────────────────────
-  // YouTube detection
-  // ─────────────────────────────────────────────
-  bool get isYoutube {
-    if (selectedVideoUrl == null) return false;
-    return selectedVideoUrl!.contains('youtube.com') ||
-        selectedVideoUrl!.contains('youtu.be');
-  }
+  // SELECT VIDEO
+  Future<void> selectVideo(
+    VideoItem item,
+  ) async {
+    if (!isExternal && isVideoMode) {
+      await _player.stop();
+    }
 
-  // ─────────────────────────────────────────────
-  // SELECT FROM LIBRARY
-  // ─────────────────────────────────────────────
-  Future<void> selectVideo(VideoItem item) async {
-    isBuffering = true;
-    notifyListeners();
+    selectedVideoUrl = item.url;
 
-    await _player.open(Media(item.url), play: true);
+    selectedThumbnail =
+        item.thumbnail;
 
-    selectedVideoUrl  = item.url;
-    selectedThumbnail = item.thumbnail;
+    _currentVideoType =
+        item.videoType;
 
     isVideoMode = true;
+
     showLibrary = false;
+
+    if (item.isExternal) {
+      isVideoPlaying = true;
+
+      isBuffering = false;
+    } else {
+      isBuffering = true;
+
+      notifyListeners();
+
+      await _player.open(
+        Media(item.url),
+        play: true,
+      );
+    }
 
     notifyListeners();
   }
 
-  // ─────────────────────────────────────────────
-  // PLAY FROM URL (YouTube + MP4)
-  // ─────────────────────────────────────────────
-  Future<void> playFromUrl(String url) async {
+  // PLAY URL
+  Future<void> playFromUrl(
+    String url, {
+    VideoType type = VideoType.mp4,
+  }) async {
     try {
+      if (!isExternal &&
+          isVideoMode) {
+        await _player.stop();
+      }
+
       isBuffering = true;
+
+      selectedVideoUrl = url;
+
+      selectedThumbnail =
+          _extractThumbnail(url);
+
+      _currentVideoType = type;
+
       notifyListeners();
 
-      selectedVideoUrl  = url;
-      selectedThumbnail = _extractThumbnail(url);
+      if (type ==
+          VideoType.external) {
+        isVideoMode = true;
 
-      // YOUTUBE → skip media_kit
-      if (url.contains('youtube.com') || url.contains('youtu.be')) {
-        isVideoMode    = true;
         isVideoPlaying = true;
-        showLibrary    = false;
-        isBuffering    = false;
+
+        showLibrary = false;
+
+        isBuffering = false;
+
         notifyListeners();
+
         return;
       }
 
-      // NORMAL VIDEO
-      await _player.open(Media(url), play: true);
+      await _player.open(
+        Media(url),
+        play: true,
+      );
 
       isVideoMode = true;
+
       showLibrary = false;
 
       notifyListeners();
     } catch (e) {
-      debugPrint('Error playing URL: $e');
+      debugPrint(
+          'playFromUrl error: $e');
     }
   }
 
-  // ─────────────────────────────────────────────
-  // THUMBNAIL EXTRACTOR
-  // ─────────────────────────────────────────────
-  String? _extractThumbnail(String url) {
+  String? _extractThumbnail(
+    String url,
+  ) {
     try {
       final uri = Uri.parse(url);
 
-      if (uri.host.contains('youtube.com') || uri.host.contains('youtu.be')) {
+      if (uri.host.contains(
+              'youtube.com') ||
+          uri.host.contains(
+              'youtu.be')) {
         String? id;
 
-        if (uri.host.contains('youtu.be')) {
-          id = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
+        if (uri.host.contains(
+            'youtu.be')) {
+          id = uri.pathSegments.first;
         } else {
           id = uri.queryParameters['v'];
         }
@@ -242,80 +363,170 @@ class VideoProvider extends ChangeNotifier {
     }
   }
 
-  // ─────────────────────────────────────────────
   // CONTROLS
-  // ─────────────────────────────────────────────
-  Future<void> pause() async => _player.pause();
 
-  Future<void> resume() async => _player.play();
+  Future<void> pause() async {
+    if (isExternal) {
+      await externalPause?.call();
+
+      isVideoPlaying = false;
+    } else {
+      await _player.pause();
+    }
+
+    notifyListeners();
+  }
+
+  Future<void> resume() async {
+    if (isExternal) {
+      await externalPlay?.call();
+
+      isVideoPlaying = true;
+    } else {
+      await _player.play();
+    }
+
+    notifyListeners();
+  }
 
   Future<void> togglePlayPause() async {
-    isVideoPlaying ? await pause() : await resume();
+    isVideoPlaying
+        ? await pause()
+        : await resume();
   }
 
-  Future<void> seek(Duration to) async {
-    await _player.seek(to);
-    position = to;
-    notifyListeners();
+  Future<void> seek(
+    Duration to,
+  ) async {
+    if (isExternal) {
+      await externalSeek?.call(to);
+
+      position = to;
+    } else {
+      await _player.seek(to);
+
+      position = to;
+    }
+
+    // ONLY UPDATE SLIDER
+    progressNotifier.value++;
   }
 
-  Future<void> skipBack() async => seek(
-        Duration(
-          milliseconds:
-              (position.inMilliseconds - 10000)
-                  .clamp(0, duration.inMilliseconds),
+  Future<void> skipBack() async {
+    await seek(
+      Duration(
+        milliseconds:
+            (position.inMilliseconds -
+                    10000)
+                .clamp(
+          0,
+          duration.inMilliseconds,
         ),
-      );
+      ),
+    );
+  }
 
-  Future<void> skipForward() async => seek(
-        Duration(
-          milliseconds:
-              (position.inMilliseconds + 10000)
-                  .clamp(0, duration.inMilliseconds),
+  Future<void> skipForward() async {
+    await seek(
+      Duration(
+        milliseconds:
+            (position.inMilliseconds +
+                    10000)
+                .clamp(
+          0,
+          duration.inMilliseconds,
         ),
-      );
+      ),
+    );
+  }
 
-  Future<void> setVolume(double v) async {
-    await _player.setVolume(v * 100);
+  Future<void> setVolume(
+    double v,
+  ) async {
+    if (!isExternal) {
+      await _player.setVolume(
+        v * 100,
+      );
+    }
+
     volume = v;
+
     isVolMuted = v == 0;
+
     notifyListeners();
   }
 
-  Future<void> toggleMute() async =>
-      setVolume(isVolMuted ? volume.clamp(0.1, 1.0) : 0);
+  Future<void> toggleMute() async {
+    setVolume(
+      isVolMuted
+          ? volume.clamp(
+              0.1,
+              1.0,
+            )
+          : 0,
+    );
+  }
 
   void toggleLibrary() {
     showLibrary = !showLibrary;
+
     notifyListeners();
   }
 
   Future<void> stop() async {
-    await _player.pause();
-    await _player.stop();
+    if (isExternal) {
+      await externalStop?.call();
+    } else {
+      await _player.pause();
 
-    isVideoMode    = false;
+      await _player.stop();
+    }
+
+    isVideoMode = false;
+
     isVideoPlaying = false;
-    isBuffering    = false;
-    selectedVideoUrl  = null;
+
+    isBuffering = false;
+
+    selectedVideoUrl = null;
+
     selectedThumbnail = null;
+
+    _currentVideoType = null;
 
     notifyListeners();
   }
 
-  String formatDuration(Duration d) {
-    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+  String formatDuration(
+    Duration d,
+  ) {
+    final m = d.inMinutes
+        .remainder(60)
+        .toString()
+        .padLeft(2, '0');
+
+    final s = d.inSeconds
+        .remainder(60)
+        .toString()
+        .padLeft(2, '0');
+
     return '$m:$s';
   }
 
   @override
   void dispose() {
     _posSub?.cancel();
+
     _durSub?.cancel();
+
     _bufferSub?.cancel();
+
     _playSub?.cancel();
+
+    progressNotifier.dispose();
+
     _player.dispose();
+
     super.dispose();
   }
 }

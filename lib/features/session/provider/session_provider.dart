@@ -6,7 +6,7 @@ import '../models/user_role.dart';
 
 const String appId = "54bf8a5095374303aa14ff23c73bac0d";
 const String token =
-    "007eJxTYLCorzEtefrxM29T4pfchzVHuJ5snG7PWVrIsXZqKdP2F4UKDKYmSWkWiaYGlqbG5ibGBsaJiYYmaWlGxsnmxkmJyQYpdyL/ZDYEMjI4sxQzMTJAIIjPy5CSmpsfnppUnJ+cnVrCwAAAu98jlA==";
+    "007eJxTYLgUPuPkjnUpu56/31eYKPx0mnUOp25kavM/v7LcHoemq7EKDKYmSWkWiaYGlqbG5ibGBsaJiYYmaWlGxsnmxkmJyQYpMw79zWwIZGS4laHAzMgAgSA+L0NKam5+eGpScX5ydmoJAwMAFj4k5g==";
 const String channel = "demoWebsocket";
 
 class SessionProvider extends ChangeNotifier {

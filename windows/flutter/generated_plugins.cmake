@@ -10,6 +10,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   media_kit_video
   permission_handler_windows
   volume_controller
+  webview_windows
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
