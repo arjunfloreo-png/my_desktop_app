@@ -417,7 +417,7 @@ class VideoProvider extends ChangeNotifier {
       Duration(
         milliseconds:
             (position.inMilliseconds -
-                    10000)
+                    5000)
                 .clamp(
           0,
           duration.inMilliseconds,
@@ -431,7 +431,7 @@ class VideoProvider extends ChangeNotifier {
       Duration(
         milliseconds:
             (position.inMilliseconds +
-                    10000)
+                    5000)
                 .clamp(
           0,
           duration.inMilliseconds,
