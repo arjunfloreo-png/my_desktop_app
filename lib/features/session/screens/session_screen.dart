@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:math';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -35,6 +37,12 @@ class _SessionScreenState extends State<SessionScreen>
   bool _showCharacter = false;
   String _currentPrompt = kPausePrompts[0];
 
+  // ── TIMER STATE ──────────────────────────────
+  int _timerSeconds = 0; // ← start from 0
+  bool _timerVisible = false;
+  bool _timerRunning = false;
+  Timer? _countdownTimer;
+
   @override
   void initState() {
     super.initState();
@@ -46,6 +54,62 @@ class _SessionScreenState extends State<SessionScreen>
     _video.addListener(_onVideoChange);
     _reward.addListener(_onRewardChange);
   }
+
+  // ── TIMER LOGIC ──────────────────────────────
+
+  void _onTimerButtonPressed() {
+    if (_timerRunning) {
+      // If running → stop and hide
+      _stopTimer();
+    } else {
+      // If not running → reset and start
+      _startTimer();
+    }
+  }
+
+  void _startTimer() {
+    setState(() {
+      _timerSeconds = 0; // ← reset to 0
+      _timerVisible = true;
+      _timerRunning = true;
+    });
+
+    _countdownTimer?.cancel();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      setState(() {
+        _timerSeconds++; // ← count up, no stop condition
+      });
+    });
+  }
+
+  void _stopTimer() {
+    _countdownTimer?.cancel();
+    setState(() {
+      _timerRunning = false;
+      // keep _timerVisible = true for 2 sec delay
+    });
+
+    // wait 2 seconds then hide
+    Future.delayed(const Duration(seconds: 10), () {
+      if (!mounted) return;
+      setState(() {
+        _timerVisible = false;
+        _timerSeconds = 0;
+      });
+    });
+  }
+
+  String _formatTimer(int seconds) {
+    final m = (seconds ~/ 60).toString().padLeft(2, '0');
+    final s = (seconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  // ── EXISTING LISTENERS ───────────────────────
 
   void _onRewardChange() {
     if (!mounted) return;
@@ -72,6 +136,7 @@ class _SessionScreenState extends State<SessionScreen>
 
   Future<void> _endSession() async {
     try {
+      _stopTimer(); // stop timer on session end
       await _video.stop();
       await _session.endSession();
 
@@ -92,6 +157,7 @@ class _SessionScreenState extends State<SessionScreen>
 
   @override
   void dispose() {
+    _countdownTimer?.cancel(); // always cancel timer
     _session.removeListener(_onSessionChange);
     _video.removeListener(_onVideoChange);
     _reward.removeListener(_onRewardChange);
@@ -133,14 +199,18 @@ class _SessionScreenState extends State<SessionScreen>
                 padding: const EdgeInsets.all(12),
                 child: Column(
                   children: [
-                    // ✅ Fixed — pass context to _mainLayout
                     Expanded(child: _mainLayout(context)),
                     const SizedBox(height: 10),
+
                     if (widget.role == UserRole.therapist)
                       ControlsBar(
                         videoProvider: _video,
                         rewardProvider: _reward,
                         onEndSession: _endSession,
+                        sessionProvider: _session,
+                        onTimerPressed:
+                            _onTimerButtonPressed, // ← pass callback
+                        timerRunning: _timerRunning, // ← pass state
                       ),
                   ],
                 ),
@@ -151,9 +221,7 @@ class _SessionScreenState extends State<SessionScreen>
                 Positioned.fill(
                   child: GestureDetector(
                     onTap: _reward.toggleDrawer,
-                    child: Container(
-                      color: Colors.black.withOpacity(0.25),
-                    ),
+                    child: Container(color: Colors.black.withOpacity(0.25)),
                   ),
                 ),
 
@@ -169,7 +237,7 @@ class _SessionScreenState extends State<SessionScreen>
                   ),
                 ),
 
-              // ✅ Fixed — removed context parameter (not needed)
+              // Video Library
               if (_video.showLibrary)
                 VideoLibraryOverlay(
                   videoProvider: _video,
@@ -178,6 +246,96 @@ class _SessionScreenState extends State<SessionScreen>
 
               // Flying badges
               FlyingBadgeOverlay(flyingBadges: _reward.flyingBadges),
+
+              // ── TIMER OVERLAY (only when visible) ──
+              if (_timerVisible)
+                Positioned(
+                  bottom: 135,
+                  left: 0,
+                  right: 240,
+                  child: Center(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(50),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 28,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(50),
+                            color: Colors.black.withOpacity(0.25),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.15),
+                              width: 1.2,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.30),
+                                blurRadius: 20,
+                                offset: const Offset(0, 6),
+                              ),
+                              BoxShadow(
+                                color: const Color(
+                                  0xFF2ECC71,
+                                ).withOpacity(0.15),
+                                blurRadius: 14,
+                                spreadRadius: 2,
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Icon circle
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: const Color(
+                                    0xFF2ECC71,
+                                  ).withOpacity(0.20),
+                                  border: Border.all(
+                                    color: const Color(
+                                      0xFF2ECC71,
+                                    ).withOpacity(0.40),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.timer_rounded,
+                                  color: Color(0xFF2ECC71),
+                                  size: 26,
+                                ),
+                              ),
+
+                              const SizedBox(width: 14),
+
+                              // Live countdown text
+                              Text(
+                                _formatTimer(_timerSeconds),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 36,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 2.0,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black38,
+                                      blurRadius: 10,
+                                      offset: Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -185,7 +343,6 @@ class _SessionScreenState extends State<SessionScreen>
     );
   }
 
-  // ✅ Fixed — accept context as parameter
   Widget _mainLayout(BuildContext context) {
     final isTherapist = widget.role == UserRole.therapist;
 
@@ -198,12 +355,12 @@ class _SessionScreenState extends State<SessionScreen>
         ),
         child: isTherapist
             ? (_session.isSwapped
-                ? VideoPanel(
-                    videoProvider: _video,
-                    showCharacter: _showCharacter,
-                    currentPrompt: _currentPrompt,
-                  )
-                : CameraTile(session: _session, isRemote: true))
+                  ? VideoPanel(
+                      videoProvider: _video,
+                      showCharacter: _showCharacter,
+                      currentPrompt: _currentPrompt,
+                    )
+                  : CameraTile(session: _session, isRemote: true))
             : CameraTile(session: _session, isRemote: true),
       ),
     );
@@ -217,12 +374,12 @@ class _SessionScreenState extends State<SessionScreen>
         ),
         child: isTherapist
             ? (_session.isSwapped
-                ? CameraTile(session: _session, isRemote: true, large: true)
-                : VideoPanel(
-                    videoProvider: _video,
-                    showCharacter: _showCharacter,
-                    currentPrompt: _currentPrompt,
-                  ))
+                  ? CameraTile(session: _session, isRemote: true, large: true)
+                  : VideoPanel(
+                      videoProvider: _video,
+                      showCharacter: _showCharacter,
+                      currentPrompt: _currentPrompt,
+                    ))
             : VideoPanel(
                 videoProvider: _video,
                 showCharacter: _showCharacter,
@@ -247,7 +404,6 @@ class _SessionScreenState extends State<SessionScreen>
       children: [
         Expanded(flex: 3, child: mainPanel),
         const SizedBox(width: 10),
-        // ✅ Fixed — context now properly passed
         SizedBox(
           width: MediaQuery.sizeOf(context).width * 0.2,
           child: Column(

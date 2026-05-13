@@ -1,3 +1,4 @@
+import 'package:floreo/features/session/provider/session_provider.dart';
 import 'package:flutter/material.dart';
 
 import '../provider/video_provider.dart';
@@ -9,16 +10,18 @@ class ControlsBar extends StatelessWidget {
   final VideoProvider videoProvider;
   final RewardProvider rewardProvider;
   final VoidCallback onEndSession;
- //inal bool showCharacter;     // kept for compatibility (not used here)
- //inal String currentPrompt;   // kept for compatibility (not used here)
+  final SessionProvider sessionProvider;
+  final VoidCallback onTimerPressed; // ← new
+  final bool timerRunning;           // ← new
 
   const ControlsBar({
     super.key,
     required this.videoProvider,
     required this.rewardProvider,
     required this.onEndSession,
-//  required this.showCharacter,
-   //equired this.currentPrompt,
+    required this.sessionProvider,
+    required this.onTimerPressed,  // ← new
+    required this.timerRunning,    // ← new
   });
 
   @override
@@ -34,7 +37,7 @@ class ControlsBar extends StatelessWidget {
             color: Colors.black.withOpacity(0.06),
             blurRadius: 10,
             offset: const Offset(0, 2),
-          )
+          ),
         ],
       ),
       child: Column(
@@ -48,7 +51,6 @@ class ControlsBar extends StatelessWidget {
     );
   }
 
-  // ── SCRUB ROW ─────────────────────────────────────────────
   Widget _scrubRow() {
     return Row(
       children: [
@@ -76,13 +78,12 @@ class ControlsBar extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(
           child: _slider(
-            value: videoProvider.position.inMilliseconds
-                .toDouble()
-                .clamp(
-                    0,
-                    videoProvider.duration.inMilliseconds
-                        .toDouble()
-                        .clamp(1, double.infinity)),
+            value: videoProvider.position.inMilliseconds.toDouble().clamp(
+                  0,
+                  videoProvider.duration.inMilliseconds
+                      .toDouble()
+                      .clamp(1, double.infinity),
+                ),
             max: videoProvider.duration.inMilliseconds
                 .toDouble()
                 .clamp(1, double.infinity),
@@ -103,27 +104,23 @@ class ControlsBar extends StatelessWidget {
     );
   }
 
-  // ── ACTION BUTTONS ─────────────────────────────────────────
   Widget _actionRow() {
     final active = videoProvider.isVideoMode;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
-        
         _btn(
           label: 'TAKE ME BACK',
           style: _ActionStyle.soft,
           onTap: active ? videoProvider.skipBack : null,
         ),
         _btn(
-          label: videoProvider.isVideoPlaying
-              ? 'POSE A QUESTION'
-              : 'ASKING...',
+          label: videoProvider.isVideoPlaying ? 'POSE A QUESTION' : 'ASKING...',
           style: _ActionStyle.outline,
           onTap: active ? videoProvider.togglePlayPause : null,
         ),
-        _timerBtn(),
+        _timerBtn(),  // ← updated
         _btn(
           icon: Icons.call_end_sharp,
           label: '',
@@ -150,20 +147,31 @@ class ControlsBar extends StatelessWidget {
     );
   }
 
-  // ── TIMER BUTTON ───────────────────────────────────────────
+  // ── TIMER BUTTON — glows red when running ──
   Widget _timerBtn() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFF00bd74),
-        border: Border.all(width: 4, color: const Color(0xff005735)),
-        borderRadius: BorderRadius.circular(30),
+    return GestureDetector(
+      onTap: onTimerPressed,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(
+          color: timerRunning ? Colors.red : const Color(0xFF00bd74),
+          border: Border.all(
+            width: 4,
+            color: timerRunning
+                ? Colors.red.shade900
+                : const Color(0xff005735),
+          ),
+          borderRadius: BorderRadius.circular(30),
+        ),
+        child: Icon(
+          timerRunning ? Icons.timer_off : Icons.timer,
+          color: Colors.white,
+        ),
       ),
-      child: const Icon(Icons.timer, color: Colors.white),
     );
   }
 
-  // ── SLIDER ────────────────────────────────────────────────
   Widget _slider({
     required double value,
     required double max,
@@ -179,16 +187,10 @@ class ControlsBar extends StatelessWidget {
         thumbColor: const Color(0xffdaf9ed),
         overlayColor: Colors.black12,
       ),
-      child: Slider(
-        value: value,
-        min: 0,
-        max: max,
-        onChanged: onChanged,
-      ),
+      child: Slider(value: value, min: 0, max: max, onChanged: onChanged),
     );
   }
 
-  // ── BUTTON ────────────────────────────────────────────────
   Widget _btn({
     IconData? icon,
     required String label,

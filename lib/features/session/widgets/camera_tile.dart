@@ -34,41 +34,65 @@ class CameraTile extends StatelessWidget {
     );
   }
 
+
   Widget _videoView() {
-    if (isRemote) {
-      if (session.remoteUid == null) {
-        return Center(
-          child: Text(
-            session.role == UserRole.therapist
-                ? 'Waiting for client...'
-                : 'Waiting for therapist...',
-            style: TextStyle(color: Colors.white54, fontSize: large ? 15 : 11),
-            textAlign: TextAlign.center,
+
+  // REMOTE USER VIEW
+  if (isRemote) {
+
+    if (session.remoteUid == null) {
+      return Center(
+        child: Text(
+          session.role == UserRole.therapist
+              ? 'Waiting for client...'
+              : 'Waiting for therapist...',
+          style: TextStyle(
+            color: Colors.white54,
+            fontSize: large ? 15 : 11,
           ),
-        );
-      }
-      return AgoraVideoView(
-        controller: VideoViewController.remote(
-          rtcEngine: session.engine,
-          canvas: VideoCanvas(uid: session.remoteUid),
-          connection: const RtcConnection(channelId: channel),
+          textAlign: TextAlign.center,
         ),
       );
     }
 
-    // Local
-    if (!session.localUserJoined) {
-      return const Center(
-        child: CircularProgressIndicator(color: Colors.white54, strokeWidth: 2),
-      );
-    }
     return AgoraVideoView(
-      controller: VideoViewController(
+      controller: VideoViewController.remote(
         rtcEngine: session.engine,
-        canvas: const VideoCanvas(uid: 0),
+
+        // ✅ IMPORTANT CHANGE
+        canvas: VideoCanvas(
+          uid: session.remoteUid,
+
+          // Switch between camera and screen
+          sourceType: session.isScreenSharing
+              ? VideoSourceType.videoSourceScreen
+              : VideoSourceType.videoSourceCamera,
+        ),
+
+        connection: const RtcConnection(
+          channelId: channel,
+        ),
       ),
     );
   }
+
+  // LOCAL USER VIEW
+  if (!session.localUserJoined) {
+    return const Center(
+      child: CircularProgressIndicator(
+        color: Colors.white54,
+        strokeWidth: 2,
+      ),
+    );
+  }
+
+  return AgoraVideoView(
+    controller: VideoViewController(
+      rtcEngine: session.engine,
+      canvas: const VideoCanvas(uid: 0),
+    ),
+  );
+}
 
   Widget _livePill() {
     final label = isRemote

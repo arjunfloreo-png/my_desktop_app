@@ -6,7 +6,7 @@ import '../models/user_role.dart';
 
 const String appId = "54bf8a5095374303aa14ff23c73bac0d";
 const String token =
-    "007eJxTYLgUPuPkjnUpu56/31eYKPx0mnUOp25kavM/v7LcHoemq7EKDKYmSWkWiaYGlqbG5ibGBsaJiYYmaWlGxsnmxkmJyQYpMw79zWwIZGS4laHAzMgAgSA+L0NKam5+eGpScX5ydmoJAwMAFj4k5g==";
+    "007eJxTYHgt0sWdE7ngxZvJkbWLmKfNT5RY/3Sx185kllcnDr5y6ZVVYDA1SUqzSDQ1sDQ1NjcxNjBOTDQ0SUszMk42N05KTDZIERBnyWoIZGRYM0WAlZEBAkF8XoaU1Nz88NSk4vzk7NQSBgYAg/wiUQ==";
 const String channel = "demoWebsocket";
 
 class SessionProvider extends ChangeNotifier {
@@ -26,7 +26,7 @@ class SessionProvider extends ChangeNotifier {
   bool isClientMuted = false;
   bool isTherapistVideoMuted = false;
   bool isClientVideoMuted = false;
-
+  bool isScreenSharing = false;
   Future<void> _initAgora() async {
     await [Permission.microphone, Permission.camera].request();
 
@@ -66,6 +66,80 @@ class SessionProvider extends ChangeNotifier {
       options: const ChannelMediaOptions(),
     );
   }
+
+
+ Future<void> startAreaScreenShare() async {
+  try {
+
+    await engine.startScreenCaptureByScreenRect(
+
+      screenRect: const Rectangle(
+        x: 0,
+        y: 0,
+        width: 1920,
+        height: 1080,
+      ),
+
+      regionRect: const Rectangle(
+        x: 100,
+        y: 100,
+        width: 800,
+        height: 600,
+      ),
+
+      captureParams: const ScreenCaptureParameters(
+        dimensions: VideoDimensions(
+          width: 1280,
+          height: 720,
+        ),
+        frameRate: 15,
+        bitrate: 0,
+        captureMouseCursor: true,
+        windowFocus: false,
+      ),
+    );
+
+    await engine.updateChannelMediaOptions(
+      const ChannelMediaOptions(
+        publishScreenTrack: true,
+        publishCameraTrack: false,
+      ),
+    );
+
+    isScreenSharing = true;
+
+    notifyListeners();
+
+    debugPrint("Screen share started");
+
+  } catch (e) {
+    debugPrint("Screen Share Error: $e");
+  }
+}
+ Future<void> stopScreenShare() async {
+  try {
+
+    // Stop screen capture
+    await engine.stopScreenCapture();
+
+    // Switch back to camera
+    await engine.updateChannelMediaOptions(
+      const ChannelMediaOptions(
+        publishScreenTrack: false,
+        publishCameraTrack: true,
+      ),
+    );
+
+    isScreenSharing = false;
+
+    notifyListeners();
+
+    debugPrint("Screen sharing stopped");
+
+  } catch (e) {
+    debugPrint("Stop Share Error: $e");
+  }
+}
 
   void toggleSwap() {
     isSwapped = !isSwapped;
