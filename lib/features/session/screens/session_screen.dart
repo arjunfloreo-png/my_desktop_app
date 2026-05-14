@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import '../models/session_constants.dart';
 import '../models/user_role.dart';
 import '../provider/reward_provider.dart';
+import '../provider/screen_share_provider.dart';
 import '../provider/session_provider.dart';
 import '../provider/video_provider.dart';
 import '../widgets/camera_tile.dart';
@@ -31,6 +32,7 @@ class _SessionScreenState extends State<SessionScreen>
   late final SessionProvider _session;
   late final VideoProvider _video;
   late final RewardProvider _reward;
+  late final ScreenShareProvider _screenShare; // ← NEW
   final FocusNode _screenFocusNode = FocusNode();
 
   final _random = Random();
@@ -42,7 +44,7 @@ class _SessionScreenState extends State<SessionScreen>
   bool _timerVisible = false;
   bool _timerRunning = false;
   Timer? _countdownTimer;
-  int _stopGeneration = 0; // invalidates stale Future.delayed hide-callbacks
+  int _stopGeneration = 0;
 
   @override
   void initState() {
@@ -50,10 +52,21 @@ class _SessionScreenState extends State<SessionScreen>
     _session = SessionProvider(role: widget.role);
     _video = VideoProvider();
     _reward = RewardProvider(vsync: this);
+    _screenShare = ScreenShareProvider(); // ← NEW
 
     _session.addListener(_onSessionChange);
     _video.addListener(_onVideoChange);
     _reward.addListener(_onRewardChange);
+    _screenShare.addListener(_onScreenShareChange); // ← NEW
+
+    // Init browser + Agora engine in background
+    _screenShare.init(); // ← NEW
+  }
+
+  // ── SCREEN SHARE LISTENER ────────────────────
+  void _onScreenShareChange() {
+    if (!mounted) return;
+    setState(() {});
   }
 
   // ── TIMER LOGIC ──────────────────────────────
@@ -67,7 +80,7 @@ class _SessionScreenState extends State<SessionScreen>
   }
 
   void _startTimer() {
-    _stopGeneration++; // invalidate any pending hide-callback from a previous stop
+    _stopGeneration++;
     _countdownTimer?.cancel();
 
     setState(() {
@@ -87,13 +100,13 @@ class _SessionScreenState extends State<SessionScreen>
 
   void _stopTimer() {
     _countdownTimer?.cancel();
-    final generation = ++_stopGeneration; // capture this stop's generation
+    final generation = ++_stopGeneration;
 
     setState(() => _timerRunning = false);
 
     Future.delayed(const Duration(seconds: 10), () {
       if (!mounted) return;
-      if (_stopGeneration != generation) return; // timer was restarted — abort hide
+      if (_stopGeneration != generation) return;
       setState(() {
         _timerVisible = false;
         _timerSeconds = 0;
@@ -134,7 +147,7 @@ class _SessionScreenState extends State<SessionScreen>
 
   Future<void> _endSession() async {
     try {
-      _stopGeneration++; // cancel any pending hide-callback
+      _stopGeneration++;
       _countdownTimer?.cancel();
       setState(() {
         _timerRunning = false;
@@ -143,6 +156,7 @@ class _SessionScreenState extends State<SessionScreen>
       });
 
       await _video.stop();
+      await _screenShare.stopShare(); // ← stop share on session end
       await _session.endSession();
 
       _reward.closeDrawer();
@@ -166,9 +180,11 @@ class _SessionScreenState extends State<SessionScreen>
     _session.removeListener(_onSessionChange);
     _video.removeListener(_onVideoChange);
     _reward.removeListener(_onRewardChange);
+    _screenShare.removeListener(_onScreenShareChange); // ← NEW
     _session.dispose();
     _video.dispose();
     _reward.dispose();
+    _screenShare.dispose(); // ← NEW
     _screenFocusNode.dispose();
     super.dispose();
   }
@@ -241,17 +257,18 @@ class _SessionScreenState extends State<SessionScreen>
                   ),
                 ),
 
-              // Video Library
+              // Video Library — now receives screenShareProvider
               if (_video.showLibrary)
                 VideoLibraryOverlay(
                   videoProvider: _video,
+                  screenShareProvider: _screenShare, // ← NEW
                   onClose: () => _screenFocusNode.requestFocus(),
                 ),
 
               // Flying badges
               FlyingBadgeOverlay(flyingBadges: _reward.flyingBadges),
 
-              // ── TIMER OVERLAY (only when visible) ──
+              // ── TIMER OVERLAY ──
               if (_timerVisible)
                 Positioned(
                   bottom: 135,
@@ -281,9 +298,7 @@ class _SessionScreenState extends State<SessionScreen>
                                 offset: const Offset(0, 6),
                               ),
                               BoxShadow(
-                                color: const Color(
-                                  0xFF2ECC71,
-                                ).withOpacity(0.15),
+                                color: const Color(0xFF2ECC71).withOpacity(0.15),
                                 blurRadius: 14,
                                 spreadRadius: 2,
                               ),
@@ -292,18 +307,13 @@ class _SessionScreenState extends State<SessionScreen>
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              // Icon circle
                               Container(
                                 padding: const EdgeInsets.all(6),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: const Color(
-                                    0xFF2ECC71,
-                                  ).withOpacity(0.20),
+                                  color: const Color(0xFF2ECC71).withOpacity(0.20),
                                   border: Border.all(
-                                    color: const Color(
-                                      0xFF2ECC71,
-                                    ).withOpacity(0.40),
+                                    color: const Color(0xFF2ECC71).withOpacity(0.40),
                                     width: 1,
                                   ),
                                 ),
@@ -316,7 +326,6 @@ class _SessionScreenState extends State<SessionScreen>
 
                               const SizedBox(width: 14),
 
-                              // Live countdown text
                               Text(
                                 _formatTimer(_timerSeconds),
                                 style: const TextStyle(
@@ -361,6 +370,7 @@ class _SessionScreenState extends State<SessionScreen>
             ? (_session.isSwapped
                   ? VideoPanel(
                       videoProvider: _video,
+                      screenShareProvider: _screenShare, // ← NEW
                       showCharacter: _showCharacter,
                       currentPrompt: _currentPrompt,
                     )
@@ -381,11 +391,13 @@ class _SessionScreenState extends State<SessionScreen>
                   ? CameraTile(session: _session, isRemote: true, large: true)
                   : VideoPanel(
                       videoProvider: _video,
+                      screenShareProvider: _screenShare, // ← NEW
                       showCharacter: _showCharacter,
                       currentPrompt: _currentPrompt,
                     ))
             : VideoPanel(
                 videoProvider: _video,
+                screenShareProvider: _screenShare, // ← NEW
                 showCharacter: _showCharacter,
                 currentPrompt: _currentPrompt,
               ),

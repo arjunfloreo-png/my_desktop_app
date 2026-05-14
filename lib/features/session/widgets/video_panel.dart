@@ -1,19 +1,23 @@
 import 'package:floreo/features/session/widgets/youtube_player_view.dart';
 import 'package:flutter/material.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:webview_windows/webview_windows.dart';
 
 import '../provider/video_provider.dart';
+import '../provider/screen_share_provider.dart';
 import 'bouncing_character.dart';
 import 'bubble_tail_painter.dart';
 
 class VideoPanel extends StatefulWidget {
   final VideoProvider videoProvider;
+  final ScreenShareProvider screenShareProvider; // ← injected
   final bool showCharacter;
   final String currentPrompt;
 
   const VideoPanel({
     super.key,
     required this.videoProvider,
+    required this.screenShareProvider,
     required this.showCharacter,
     required this.currentPrompt,
   });
@@ -28,8 +32,6 @@ class _VideoPanelState extends State<VideoPanel> {
   @override
   void didUpdateWidget(covariant VideoPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-
-    // ONLY animate when prompt actually changes
     if (widget.currentPrompt != oldWidget.currentPrompt) {
       _lastPrompt = widget.currentPrompt;
     }
@@ -37,8 +39,102 @@ class _VideoPanelState extends State<VideoPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final screenShare = widget.screenShareProvider;
     final videoProvider = widget.videoProvider;
 
+    // ── SCREEN SHARE MODE (exact TherapistScreen behaviour) ──
+    // Show WebView when showBrowser is true, placeholder when false
+    if (screenShare.isSharing || screenShare.showBrowser) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          // WEBVIEW — same as TherapistScreen main panel
+          ClipRRect(
+            child: screenShare.showBrowser
+                ? Webview(screenShare.webviewController)
+                : Container(
+                    color: const Color(0xFF1A2B1A),
+                    child: const Center(
+                      child: Text(
+                        'Starting browser...',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+          ),
+
+          // STOP SHARE BUTTON overlay (top-right)
+          Positioned(
+            top: 12,
+            right: 12,
+            child: ElevatedButton.icon(
+              onPressed: screenShare.stopShare,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+              ),
+              icon: const Icon(Icons.stop_screen_share, size: 18),
+              label: const Text('Stop Share'),
+            ),
+          ),
+
+          // LOADING INDICATOR while initializing
+          if (screenShare.isInitializing)
+            Container(
+              color: Colors.black.withOpacity(0.45),
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: Color(0xFF00bd74)),
+                    SizedBox(height: 12),
+                    Text(
+                      'Starting screen share...',
+                      style: TextStyle(color: Colors.white, fontSize: 14),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // ERROR BANNER
+          if (screenShare.error != null)
+            Positioned(
+              bottom: 12,
+              left: 12,
+              right: 12,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade800,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  screenShare.error!,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+        ],
+      );
+    }
+
+    // ── NORMAL VIDEO MODE ────────────────────────
     if (!videoProvider.isVideoMode) {
       return _placeholder(context);
     }
@@ -46,17 +142,11 @@ class _VideoPanelState extends State<VideoPanel> {
     return Stack(
       fit: StackFit.expand,
       children: [
-
-        // VIDEO PLAYER
         _buildVideoLayer(),
 
-        // BUFFERING
-        if (videoProvider.isBuffering)
-          _buildBuffering(),
+        if (videoProvider.isBuffering) _buildBuffering(),
 
-        // CHARACTER OVERLAY
-        if (widget.showCharacter)
-          _buildCharacterOverlay(),
+        if (widget.showCharacter) _buildCharacterOverlay(),
       ],
     );
   }
@@ -66,9 +156,7 @@ class _VideoPanelState extends State<VideoPanel> {
   // ─────────────────────────────────────────────
   Widget _buildVideoLayer() {
     final videoProvider = widget.videoProvider;
-
-    final url =
-        videoProvider.selectedVideoUrl ?? '';
+    final url = videoProvider.selectedVideoUrl ?? '';
 
     debugPrint(
       'Selected Video => '
@@ -76,7 +164,6 @@ class _VideoPanelState extends State<VideoPanel> {
       'url=$url',
     );
 
-    // YOUTUBE / EXTERNAL VIDEO
     if (videoProvider.isExternal) {
       return Container(
         color: Colors.black,
@@ -90,7 +177,6 @@ class _VideoPanelState extends State<VideoPanel> {
       );
     }
 
-    // MP4 VIDEO
     return _buildMp4Layer();
   }
 
@@ -109,8 +195,7 @@ class _VideoPanelState extends State<VideoPanel> {
             width: 1920,
             height: 1080,
             child: Video(
-              controller:
-                  videoProvider.videoController,
+              controller: videoProvider.videoController,
               controls: NoVideoControls,
             ),
           ),
@@ -144,70 +229,45 @@ class _VideoPanelState extends State<VideoPanel> {
         child: Center(
           child: TweenAnimationBuilder<double>(
             key: ValueKey(_lastPrompt),
-            tween: Tween(
-              begin: 0.0,
-              end: 1.0,
-            ),
-            duration: const Duration(
-              milliseconds: 450,
-            ),
+            tween: Tween(begin: 0.0, end: 1.0),
+            duration: const Duration(milliseconds: 450),
             curve: Curves.easeOutBack,
-            builder: (
-              context,
-              value,
-              child,
-            ) {
+            builder: (context, value, child) {
               return Opacity(
-                opacity: value.clamp(0.0, 1.0), // FIX: easeOutBack overshoots above 1.0
-                child: Transform.scale(
-                  scale: value,
-                  child: child,
-                ),
+                opacity: value.clamp(0.0, 1.0),
+                child: Transform.scale(scale: value, child: child),
               );
             },
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-
-                // CHAT BUBBLE
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(
+                  padding: const EdgeInsets.symmetric(
                     horizontal: 18,
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(
-                      0.72,
-                    ),
+                    color: Colors.black.withOpacity(0.72),
                     border: Border.all(
-                      color:
-                          const Color(0xff00bd74),
+                      color: const Color(0xff00bd74),
                       width: 1.5,
                     ),
-                    borderRadius:
-                        BorderRadius.circular(24),
+                    borderRadius: BorderRadius.circular(24),
                   ),
                   child: Text(
                     widget.currentPrompt,
                     style: const TextStyle(
-                      color:
-                          Color(0xff00e68a),
+                      color: Color(0xff00e68a),
                       fontSize: 15,
-                      fontWeight:
-                          FontWeight.w600,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
-
                 CustomPaint(
                   size: const Size(16, 10),
                   painter: BubbleTailPainter(),
                 ),
-
                 const SizedBox(height: 4),
-
-                // CHARACTER
                 const BouncingCharacter(),
               ],
             ),
@@ -229,52 +289,38 @@ class _VideoPanelState extends State<VideoPanel> {
         child: GestureDetector(
           onTap: videoProvider.toggleLibrary,
           child: Container(
-            padding:
-                const EdgeInsets.symmetric(
+            padding: const EdgeInsets.symmetric(
               horizontal: 24,
               vertical: 12,
             ),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius:
-                  BorderRadius.circular(30),
+              borderRadius: BorderRadius.circular(30),
               boxShadow: [
                 BoxShadow(
-                  color:
-                      Colors.black.withOpacity(
-                    0.08,
-                  ),
+                  color: Colors.black.withOpacity(0.08),
                   blurRadius: 12,
                 ),
               ],
             ),
             child: Row(
-              mainAxisSize:
-                  MainAxisSize.min,
+              mainAxisSize: MainAxisSize.min,
               children: [
-
-                // LIVE DOT
                 Container(
                   width: 10,
                   height: 10,
-                  decoration:
-                      const BoxDecoration(
+                  decoration: const BoxDecoration(
                     color: Colors.red,
                     shape: BoxShape.circle,
                   ),
                 ),
-
                 const SizedBox(width: 10),
-
-                // LABEL
                 const Text(
                   'Go LIVE',
                   style: TextStyle(
                     fontSize: 20,
-                    fontWeight:
-                        FontWeight.w600,
-                    color:
-                        Color(0xFF1A1A2E),
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1A1A2E),
                   ),
                 ),
               ],

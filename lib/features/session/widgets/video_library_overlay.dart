@@ -5,16 +5,19 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import '../models/video_item.dart';
 import '../provider/video_provider.dart';
+import '../provider/screen_share_provider.dart';
 import 'hover_preview_popup.dart';
 import 'video_hover_item.dart';
 
 class VideoLibraryOverlay extends StatefulWidget {
   final VideoProvider videoProvider;
+  final ScreenShareProvider screenShareProvider; // ← injected
   final VoidCallback onClose;
 
   const VideoLibraryOverlay({
     super.key,
     required this.videoProvider,
+    required this.screenShareProvider,
     required this.onClose,
   });
 
@@ -34,12 +37,7 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
   Player? _hoverPlayer;
   VideoController? _hoverController;
   OverlayEntry? _overlayEntry;
-
-  /// URL currently being async-loaded — lets us cancel stale loads
-  /// when the mouse moves to a different item before loading finishes.
   String? _loadingUrl;
-
-  /// 300 ms debounce so we don't fire previews on quick mouse passes.
   Timer? _hoverDebounce;
 
   // ────────────────────────────────────────────
@@ -50,8 +48,6 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
 
   // ── Single entry point for all hover-enters ──
   void _onHoverEnter(VideoItem video, Offset position, Size itemSize) {
-    // Always cancel the pending debounce and nuke the current overlay
-    // so only ONE overlay can ever exist at a time.
     _hoverDebounce?.cancel();
     _removeOverlay();
 
@@ -70,7 +66,7 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
     _removeOverlay();
   }
 
-  // ── MP4 preview (media_kit) ──────────────────
+  // ── MP4 preview ──────────────────────────────
   Future<void> _showMp4PreviewOverlay(VideoItem video) async {
     final targetUrl = video.url;
     _loadingUrl = targetUrl;
@@ -78,12 +74,9 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
     final player = Player();
     final controller = VideoController(player);
 
-    // IMPORTANT:
-    // Assign first before async work.
     _hoverPlayer = player;
     _hoverController = controller;
 
-    // Insert overlay BEFORE opening media.
     _insertOverlay(
       child: HoverPreviewPopup(controller: controller, title: video.title),
       width: 280,
@@ -92,15 +85,10 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
 
     try {
       await player.setVolume(0);
-
-      // Small delay helps texture initialization on Flutter desktop/web.
       await Future.delayed(const Duration(milliseconds: 80));
-
       await player.open(Media(targetUrl), play: true);
-
       await player.setPlaylistMode(PlaylistMode.loop);
 
-      // stale hover protection
       if (!mounted || _loadingUrl != targetUrl) {
         await player.dispose();
       }
@@ -110,25 +98,21 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
     }
   }
 
-  // ── External link info card ──────────────────
-  // ── External / YouTube preview ──────────────────
+  // ── External / YouTube preview ───────────────
   void _showExternalInfoOverlay(VideoItem video) {
     if (!mounted) return;
 
     final url = video.url.toLowerCase();
-
-    // Detect YouTube links
-    final isYoutube = url.contains('youtube.com') || url.contains('youtu.be');
+    final isYoutube =
+        url.contains('youtube.com') || url.contains('youtu.be');
 
     if (isYoutube) {
-      // Show mini YouTube preview
       _insertOverlay(
         child: _YoutubePreviewCard(video: video),
         width: 280,
         height: 180,
       );
     } else {
-      // Fallback normal external card
       _insertOverlay(
         child: _ExternalLinkCard(video: video),
         width: 280,
@@ -143,7 +127,6 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
     required double width,
     required double height,
   }) {
-    // Hard guarantee: remove any existing overlay before inserting
     _overlayEntry?.remove();
     _overlayEntry = null;
 
@@ -229,6 +212,62 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
     return result;
   }
 
+  // ── Share Screen confirmation dialog ─────────
+  void _showShareConfirmation() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text(
+          'Confirmation Alert',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 17,
+            color: Color(0xFF1A1A2E),
+          ),
+        ),
+        content: const Text(
+          'Are you sure you want to share your screen?',
+          style: TextStyle(fontSize: 14, color: Color(0xFF555555)),
+        ),
+        actionsPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 10,
+        ),
+        actions: [
+          // Cancel — closes dialog only
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Color(0xFF9E9E9E)),
+            ),
+          ),
+
+          // Share — closes dialog + overlay + starts screen share
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF00796B),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: () {
+              Navigator.of(ctx).pop();   // close alert
+              _closeLibrary();           // close the overlay
+              // ── EXACT same call as TherapistScreen "LET ME SHARE" ──
+              widget.screenShareProvider.openBrowserAndShare();
+            },
+            child: const Text('Share'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Positioned(
@@ -241,14 +280,20 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 20),
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 20,
+            ),
           ],
         ),
         child: Column(
           children: [
             // ── Header ───────────────────────────────
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
               child: Row(
                 children: [
                   const Icon(
@@ -265,63 +310,11 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
                       color: Color(0xFF1A1A2E),
                     ),
                   ),
-                  SizedBox(width: 12),
+                  const SizedBox(width: 12),
+
+                  // ── SHARE SCREEN BUTTON ──────────
                   TextButton.icon(
-                    onPressed: () {
-                      showDialog(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          title: const Text(
-                            'Confirmation Alert',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 17,
-                              color: Color(0xFF1A1A2E),
-                            ),
-                          ),
-                          content: const Text(
-                            'Are you sure you want to share your screen?',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF555555),
-                            ),
-                          ),
-                          actionsPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                          actions: [
-                            // Cancel — closes dialog only
-                            TextButton(
-                              onPressed: () => Navigator.of(ctx).pop(),
-                              child: const Text(
-                                'Cancel',
-                                style: TextStyle(color: Color(0xFF9E9E9E)),
-                              ),
-                            ),
-                            // Share — closes dialog + overlay
-                            ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF00796B),
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                              ),
-                              onPressed: () {
-                                Navigator.of(ctx).pop(); // close alert
-                                _closeLibrary(); // close the overlay
-                                //  start screen share here
-                              },
-                              child: const Text('Share'),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
+                    onPressed: _showShareConfirmation, // ← wired here
                     label: const Text(
                       'Share Screen',
                       style: TextStyle(
@@ -336,6 +329,7 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
                       color: Color(0xFF00796B),
                     ),
                   ),
+
                   const Spacer(),
                   _LegendBadge(isExternal: false),
                   const SizedBox(width: 6),
@@ -351,11 +345,15 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
 
             // ── Search ───────────────────────────────
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
+              ),
               child: TextField(
                 focusNode: _searchFocusNode,
                 controller: _searchController,
-                onChanged: (value) => setState(() => _searchQuery = value),
+                onChanged: (value) =>
+                    setState(() => _searchQuery = value),
                 decoration: InputDecoration(
                   hintText: 'Search by name...',
                   filled: true,
@@ -454,10 +452,10 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       itemCount: _filteredTopics.length,
                       itemBuilder: (_, mainIndex) {
-                        final mainTopic = _filteredTopics[mainIndex];
-                        final isMainExpanded = _expandedMainTopics.contains(
-                          mainTopic.title,
-                        );
+                        final mainTopic =
+                            _filteredTopics[mainIndex];
+                        final isMainExpanded =
+                            _expandedMainTopics.contains(mainTopic.title);
 
                         return Column(
                           children: [
@@ -466,9 +464,9 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
                               onTap: () => setState(() {
                                 isMainExpanded
                                     ? _expandedMainTopics.remove(
-                                        mainTopic.title,
-                                      )
-                                    : _expandedMainTopics.add(mainTopic.title);
+                                        mainTopic.title)
+                                    : _expandedMainTopics.add(
+                                        mainTopic.title);
                               }),
                               child: Container(
                                 margin: const EdgeInsets.symmetric(
@@ -481,7 +479,8 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
                                 ),
                                 decoration: BoxDecoration(
                                   color: const Color(0xFF00796B),
-                                  borderRadius: BorderRadius.circular(12),
+                                  borderRadius:
+                                      BorderRadius.circular(12),
                                 ),
                                 child: Row(
                                   children: [
@@ -518,8 +517,8 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
                               ...mainTopic.subTopics.map((subTopic) {
                                 final subKey =
                                     '${mainTopic.title}_${subTopic.title}';
-                                final isSubExpanded = _expandedSubTopics
-                                    .contains(subKey);
+                                final isSubExpanded =
+                                    _expandedSubTopics.contains(subKey);
 
                                 final mp4Count = subTopic.videos
                                     .where((v) => v.isMp4)
@@ -533,8 +532,10 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
                                     GestureDetector(
                                       onTap: () => setState(() {
                                         isSubExpanded
-                                            ? _expandedSubTopics.remove(subKey)
-                                            : _expandedSubTopics.add(subKey);
+                                            ? _expandedSubTopics
+                                                .remove(subKey)
+                                            : _expandedSubTopics
+                                                .add(subKey);
                                       }),
                                       child: Container(
                                         margin: const EdgeInsets.only(
@@ -542,24 +543,27 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
                                           right: 12,
                                           top: 4,
                                         ),
-                                        padding: const EdgeInsets.symmetric(
+                                        padding:
+                                            const EdgeInsets.symmetric(
                                           horizontal: 14,
                                           vertical: 10,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFFE0F2F1),
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
+                                          color:
+                                              const Color(0xFFE0F2F1),
+                                          borderRadius:
+                                              BorderRadius.circular(10),
                                           border: Border.all(
-                                            color: const Color(0xFF80CBC4),
+                                            color:
+                                                const Color(0xFF80CBC4),
                                             width: 1,
                                           ),
                                         ),
                                         child: Row(
                                           children: [
                                             const Icon(
-                                              Icons.folder_open_outlined,
+                                              Icons
+                                                  .folder_open_outlined,
                                               color: Color(0xFF00796B),
                                               size: 18,
                                             ),
@@ -568,8 +572,10 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
                                               child: Text(
                                                 subTopic.title,
                                                 style: const TextStyle(
-                                                  color: Color(0xFF004D40),
-                                                  fontWeight: FontWeight.w600,
+                                                  color:
+                                                      Color(0xFF004D40),
+                                                  fontWeight:
+                                                      FontWeight.w600,
                                                   fontSize: 13,
                                                 ),
                                               ),
@@ -579,7 +585,8 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
                                                 count: mp4Count,
                                                 isExternal: false,
                                               ),
-                                            if (mp4Count > 0 && linkCount > 0)
+                                            if (mp4Count > 0 &&
+                                                linkCount > 0)
                                               const SizedBox(width: 4),
                                             if (linkCount > 0)
                                               _SubtopicCount(
@@ -589,9 +596,12 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
                                             const SizedBox(width: 6),
                                             Icon(
                                               isSubExpanded
-                                                  ? Icons.keyboard_arrow_up
-                                                  : Icons.keyboard_arrow_down,
-                                              color: const Color(0xFF00796B),
+                                                  ? Icons
+                                                      .keyboard_arrow_up
+                                                  : Icons
+                                                      .keyboard_arrow_down,
+                                              color:
+                                                  const Color(0xFF00796B),
                                               size: 18,
                                             ),
                                           ],
@@ -606,13 +616,13 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
                                           video: video,
                                           onTap: () {
                                             _onHoverExit();
-                                            widget.videoProvider.selectVideo(
-                                              video,
-                                            );
+                                            widget.videoProvider
+                                                .selectVideo(video);
                                             _closeLibrary();
                                           },
                                           onHoverEnter: (pos, size) =>
-                                              _onHoverEnter(video, pos, size),
+                                              _onHoverEnter(
+                                                  video, pos, size),
                                           onHoverExit: _onHoverExit,
                                         );
                                       }),
@@ -633,7 +643,6 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
 
 // ─────────────────────────────────────────────────────────────
 // EXTERNAL LINK INFO CARD
-// Shown on hover for link-type items instead of a video preview.
 // ─────────────────────────────────────────────────────────────
 class _ExternalLinkCard extends StatefulWidget {
   final VideoItem video;
@@ -698,7 +707,6 @@ class _ExternalLinkCardState extends State<_ExternalLinkCard>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Top row: icon + labels ─────────────
               Row(
                 children: [
                   Container(
@@ -732,18 +740,16 @@ class _ExternalLinkCardState extends State<_ExternalLinkCard>
                       ),
                       Text(
                         'Opens in browser · No preview',
-                        style: TextStyle(color: Colors.white38, fontSize: 10),
+                        style: TextStyle(
+                            color: Colors.white38, fontSize: 10),
                       ),
                     ],
                   ),
                 ],
               ),
-
               const SizedBox(height: 12),
               const Divider(color: Colors.white12, height: 1),
               const SizedBox(height: 10),
-
-              // ── Video title ────────────────────────
               Text(
                 widget.video.title,
                 style: const TextStyle(
@@ -755,10 +761,7 @@ class _ExternalLinkCardState extends State<_ExternalLinkCard>
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-
               const SizedBox(height: 8),
-
-              // ── URL chip ───────────────────────────
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(
@@ -803,10 +806,14 @@ class _SubtopicCount extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: BoxDecoration(
-        color: isExternal ? const Color(0xFFFFF3E0) : const Color(0xFFE8F5E9),
+        color: isExternal
+            ? const Color(0xFFFFF3E0)
+            : const Color(0xFFE8F5E9),
         borderRadius: BorderRadius.circular(4),
         border: Border.all(
-          color: isExternal ? const Color(0xFFFFB74D) : const Color(0xFF81C784),
+          color: isExternal
+              ? const Color(0xFFFFB74D)
+              : const Color(0xFF81C784),
         ),
       ),
       child: Text(
@@ -814,7 +821,9 @@ class _SubtopicCount extends StatelessWidget {
         style: TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.w600,
-          color: isExternal ? const Color(0xFFE65100) : const Color(0xFF2E7D32),
+          color: isExternal
+              ? const Color(0xFFE65100)
+              : const Color(0xFF2E7D32),
         ),
       ),
     );
@@ -859,12 +868,11 @@ class _LegendBadge extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────
-// YOUTUBE / EXTERNAL MINI PREVIEW
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// YOUTUBE PREVIEW CARD
+// ─────────────────────────────────────────────────────────────
 class _YoutubePreviewCard extends StatefulWidget {
   final VideoItem video;
-
   const _YoutubePreviewCard({required this.video});
 
   @override
@@ -874,27 +882,21 @@ class _YoutubePreviewCard extends StatefulWidget {
 class _YoutubePreviewCardState extends State<_YoutubePreviewCard>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ac;
-
   late final Animation<double> _fade;
-
   late final Animation<Offset> _slide;
 
   @override
   void initState() {
     super.initState();
-
     _ac = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 220),
     );
-
     _fade = CurvedAnimation(parent: _ac, curve: Curves.easeOut);
-
     _slide = Tween<Offset>(
       begin: const Offset(0, 0.05),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _ac, curve: Curves.easeOut));
-
     _ac.forward();
   }
 
@@ -904,25 +906,16 @@ class _YoutubePreviewCardState extends State<_YoutubePreviewCard>
     super.dispose();
   }
 
-  // ─────────────────────────────────────────
-  // EXTRACT YOUTUBE THUMBNAIL
-  // ─────────────────────────────────────────
   String _thumbnail(String url) {
     try {
       final uri = Uri.parse(url);
-
       String? id;
-
       if (uri.host.contains('youtu.be')) {
         id = uri.pathSegments.first;
       } else {
         id = uri.queryParameters['v'];
       }
-
-      if (id == null || id.isEmpty) {
-        return '';
-      }
-
+      if (id == null || id.isEmpty) return '';
       return 'https://img.youtube.com/vi/$id/0.jpg';
     } catch (_) {
       return '';
@@ -955,17 +948,10 @@ class _YoutubePreviewCardState extends State<_YoutubePreviewCard>
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // ─────────────────────────────
-              // THUMBNAIL
-              // ─────────────────────────────
               if (thumb.isNotEmpty)
                 Image.network(thumb, fit: BoxFit.cover)
               else
                 Container(color: Colors.black87),
-
-              // ─────────────────────────────
-              // DARK OVERLAY
-              // ─────────────────────────────
               Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -978,10 +964,6 @@ class _YoutubePreviewCardState extends State<_YoutubePreviewCard>
                   ),
                 ),
               ),
-
-              // ─────────────────────────────
-              // PLAY ICON
-              // ─────────────────────────────
               Center(
                 child: Container(
                   width: 58,
@@ -997,10 +979,6 @@ class _YoutubePreviewCardState extends State<_YoutubePreviewCard>
                   ),
                 ),
               ),
-
-              // ─────────────────────────────
-              // YOUTUBE BADGE
-              // ─────────────────────────────
               Positioned(
                 top: 10,
                 left: 10,
@@ -1016,7 +994,8 @@ class _YoutubePreviewCardState extends State<_YoutubePreviewCard>
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.play_arrow, color: Colors.white, size: 12),
+                      Icon(Icons.play_arrow,
+                          color: Colors.white, size: 12),
                       SizedBox(width: 4),
                       Text(
                         'YOUTUBE',
@@ -1031,10 +1010,6 @@ class _YoutubePreviewCardState extends State<_YoutubePreviewCard>
                   ),
                 ),
               ),
-
-              // ─────────────────────────────
-              // TITLE
-              // ─────────────────────────────
               Positioned(
                 left: 12,
                 right: 12,
