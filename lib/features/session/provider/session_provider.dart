@@ -60,6 +60,7 @@ class SessionProvider extends ChangeNotifier {
     await engine.enableVideo();
     await engine.startPreview();
     await engine.joinChannel(
+      
       token: token,
       channelId: channel,
       uid: 0,

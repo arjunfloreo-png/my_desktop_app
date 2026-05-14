@@ -72,80 +72,70 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
 
   // ── MP4 preview (media_kit) ──────────────────
   Future<void> _showMp4PreviewOverlay(VideoItem video) async {
-  final targetUrl = video.url;
-  _loadingUrl = targetUrl;
+    final targetUrl = video.url;
+    _loadingUrl = targetUrl;
 
-  final player = Player();
-  final controller = VideoController(player);
+    final player = Player();
+    final controller = VideoController(player);
 
-  // IMPORTANT:
-  // Assign first before async work.
-  _hoverPlayer = player;
-  _hoverController = controller;
+    // IMPORTANT:
+    // Assign first before async work.
+    _hoverPlayer = player;
+    _hoverController = controller;
 
-  // Insert overlay BEFORE opening media.
-  _insertOverlay(
-    child: HoverPreviewPopup(
-      controller: controller,
-      title: video.title,
-    ),
-    width: 280,
-    height: 180,
-  );
-
-  try {
-    await player.setVolume(0);
-
-    // Small delay helps texture initialization on Flutter desktop/web.
-    await Future.delayed(const Duration(milliseconds: 80));
-
-    await player.open(
-      Media(targetUrl),
-      play: true,
-    );
-
-    await player.setPlaylistMode(PlaylistMode.loop);
-
-    // stale hover protection
-    if (!mounted || _loadingUrl != targetUrl) {
-      await player.dispose();
-    }
-  } catch (e) {
-    debugPrint('Preview failed: $e');
-    _removeOverlay();
-  }
-}
-
-  
-
-  // ── External link info card ──────────────────
-   // ── External / YouTube preview ──────────────────
-void _showExternalInfoOverlay(VideoItem video) {
-  if (!mounted) return;
-
-  final url = video.url.toLowerCase();
-
-  // Detect YouTube links
-  final isYoutube =
-      url.contains('youtube.com') ||
-      url.contains('youtu.be');
-
-  if (isYoutube) {
-    // Show mini YouTube preview
+    // Insert overlay BEFORE opening media.
     _insertOverlay(
-      child: _YoutubePreviewCard(video: video),
+      child: HoverPreviewPopup(controller: controller, title: video.title),
       width: 280,
       height: 180,
     );
-  } else {
-    // Fallback normal external card
-    _insertOverlay(
-      child: _ExternalLinkCard(video: video),
-      width: 280,
-      height: 130,
-    );
+
+    try {
+      await player.setVolume(0);
+
+      // Small delay helps texture initialization on Flutter desktop/web.
+      await Future.delayed(const Duration(milliseconds: 80));
+
+      await player.open(Media(targetUrl), play: true);
+
+      await player.setPlaylistMode(PlaylistMode.loop);
+
+      // stale hover protection
+      if (!mounted || _loadingUrl != targetUrl) {
+        await player.dispose();
+      }
+    } catch (e) {
+      debugPrint('Preview failed: $e');
+      _removeOverlay();
+    }
   }
-}
+
+  // ── External link info card ──────────────────
+  // ── External / YouTube preview ──────────────────
+  void _showExternalInfoOverlay(VideoItem video) {
+    if (!mounted) return;
+
+    final url = video.url.toLowerCase();
+
+    // Detect YouTube links
+    final isYoutube = url.contains('youtube.com') || url.contains('youtu.be');
+
+    if (isYoutube) {
+      // Show mini YouTube preview
+      _insertOverlay(
+        child: _YoutubePreviewCard(video: video),
+        width: 280,
+        height: 180,
+      );
+    } else {
+      // Fallback normal external card
+      _insertOverlay(
+        child: _ExternalLinkCard(video: video),
+        width: 280,
+        height: 130,
+      );
+    }
+  }
 
   // ── Shared overlay inserter ──────────────────
   void _insertOverlay({
@@ -268,11 +258,82 @@ void _showExternalInfoOverlay(VideoItem video) {
                   ),
                   const SizedBox(width: 8),
                   const Text(
-                    'Select Video',
+                    'Share Video',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                       color: Color(0xFF1A1A2E),
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  TextButton.icon(
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          title: const Text(
+                            'Confirmation Alert',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 17,
+                              color: Color(0xFF1A1A2E),
+                            ),
+                          ),
+                          content: const Text(
+                            'Are you sure you want to share your screen?',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF555555),
+                            ),
+                          ),
+                          actionsPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          actions: [
+                            // Cancel — closes dialog only
+                            TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(),
+                              child: const Text(
+                                'Cancel',
+                                style: TextStyle(color: Color(0xFF9E9E9E)),
+                              ),
+                            ),
+                            // Share — closes dialog + overlay
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF00796B),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              onPressed: () {
+                                Navigator.of(ctx).pop(); // close alert
+                                _closeLibrary(); // close the overlay
+                                //  start screen share here
+                              },
+                              child: const Text('Share'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    label: const Text(
+                      'Share Screen',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1A1A2E),
+                      ),
+                    ),
+                    icon: const Icon(
+                      Icons.screen_share_outlined,
+                      size: 18,
+                      color: Color(0xFF00796B),
                     ),
                   ),
                   const Spacer(),
@@ -340,238 +401,228 @@ void _showExternalInfoOverlay(VideoItem video) {
                       ),
                     )
                   : widget.videoProvider.topicsError != null
-                      ? Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.wifi_off_outlined,
-                                size: 40,
-                                color: Color(0xFFB2DFDB),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                widget.videoProvider.topicsError!,
-                                style: const TextStyle(
-                                  color: Color(0xFF9E9E9E),
-                                  fontSize: 14,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              TextButton(
-                                onPressed: widget.videoProvider.fetchTopics,
-                                child: const Text(
-                                  'Retry',
-                                  style: TextStyle(color: Color(0xFF00796B)),
-                                ),
-                              ),
-                            ],
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.wifi_off_outlined,
+                            size: 40,
+                            color: Color(0xFFB2DFDB),
                           ),
-                        )
-                      : _filteredTopics.isEmpty
-                          ? const Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.video_library_outlined,
-                                    size: 40,
-                                    color: Color(0xFFB2DFDB),
-                                  ),
-                                  SizedBox(height: 8),
-                                  Text(
-                                    'No videos found',
-                                    style: TextStyle(
-                                      color: Color(0xFF9E9E9E),
-                                      fontSize: 14,
+                          const SizedBox(height: 8),
+                          Text(
+                            widget.videoProvider.topicsError!,
+                            style: const TextStyle(
+                              color: Color(0xFF9E9E9E),
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextButton(
+                            onPressed: widget.videoProvider.fetchTopics,
+                            child: const Text(
+                              'Retry',
+                              style: TextStyle(color: Color(0xFF00796B)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : _filteredTopics.isEmpty
+                  ? const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.video_library_outlined,
+                            size: 40,
+                            color: Color(0xFFB2DFDB),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'No videos found',
+                            style: TextStyle(
+                              color: Color(0xFF9E9E9E),
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: _filteredTopics.length,
+                      itemBuilder: (_, mainIndex) {
+                        final mainTopic = _filteredTopics[mainIndex];
+                        final isMainExpanded = _expandedMainTopics.contains(
+                          mainTopic.title,
+                        );
+
+                        return Column(
+                          children: [
+                            // ── MainTopic Row ──────────
+                            GestureDetector(
+                              onTap: () => setState(() {
+                                isMainExpanded
+                                    ? _expandedMainTopics.remove(
+                                        mainTopic.title,
+                                      )
+                                    : _expandedMainTopics.add(mainTopic.title);
+                              }),
+                              child: Container(
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 4,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF00796B),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.folder_outlined,
+                                      color: Colors.white,
+                                      size: 20,
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        mainTopic.title,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ),
+                                    Icon(
+                                      isMainExpanded
+                                          ? Icons.keyboard_arrow_up
+                                          : Icons.keyboard_arrow_down,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                  ],
+                                ),
                               ),
-                            )
-                          : ListView.builder(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              itemCount: _filteredTopics.length,
-                              itemBuilder: (_, mainIndex) {
-                                final mainTopic = _filteredTopics[mainIndex];
-                                final isMainExpanded =
-                                    _expandedMainTopics.contains(mainTopic.title);
+                            ),
+
+                            // ── SubTopics ──────────────
+                            if (isMainExpanded)
+                              ...mainTopic.subTopics.map((subTopic) {
+                                final subKey =
+                                    '${mainTopic.title}_${subTopic.title}';
+                                final isSubExpanded = _expandedSubTopics
+                                    .contains(subKey);
+
+                                final mp4Count = subTopic.videos
+                                    .where((v) => v.isMp4)
+                                    .length;
+                                final linkCount = subTopic.videos
+                                    .where((v) => v.isExternal)
+                                    .length;
 
                                 return Column(
                                   children: [
-                                    // ── MainTopic Row ──────────
                                     GestureDetector(
                                       onTap: () => setState(() {
-                                        isMainExpanded
-                                            ? _expandedMainTopics
-                                                .remove(mainTopic.title)
-                                            : _expandedMainTopics
-                                                .add(mainTopic.title);
+                                        isSubExpanded
+                                            ? _expandedSubTopics.remove(subKey)
+                                            : _expandedSubTopics.add(subKey);
                                       }),
                                       child: Container(
-                                        margin: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 4,
+                                        margin: const EdgeInsets.only(
+                                          left: 28,
+                                          right: 12,
+                                          top: 4,
                                         ),
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 14,
-                                          vertical: 12,
+                                          vertical: 10,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFF00796B),
-                                          borderRadius:
-                                              BorderRadius.circular(12),
+                                          color: const Color(0xFFE0F2F1),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          border: Border.all(
+                                            color: const Color(0xFF80CBC4),
+                                            width: 1,
+                                          ),
                                         ),
                                         child: Row(
                                           children: [
                                             const Icon(
-                                              Icons.folder_outlined,
-                                              color: Colors.white,
-                                              size: 20,
+                                              Icons.folder_open_outlined,
+                                              color: Color(0xFF00796B),
+                                              size: 18,
                                             ),
-                                            const SizedBox(width: 10),
+                                            const SizedBox(width: 8),
                                             Expanded(
                                               child: Text(
-                                                mainTopic.title,
+                                                subTopic.title,
                                                 style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 14,
+                                                  color: Color(0xFF004D40),
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 13,
                                                 ),
                                               ),
                                             ),
+                                            if (mp4Count > 0)
+                                              _SubtopicCount(
+                                                count: mp4Count,
+                                                isExternal: false,
+                                              ),
+                                            if (mp4Count > 0 && linkCount > 0)
+                                              const SizedBox(width: 4),
+                                            if (linkCount > 0)
+                                              _SubtopicCount(
+                                                count: linkCount,
+                                                isExternal: true,
+                                              ),
+                                            const SizedBox(width: 6),
                                             Icon(
-                                              isMainExpanded
+                                              isSubExpanded
                                                   ? Icons.keyboard_arrow_up
                                                   : Icons.keyboard_arrow_down,
-                                              color: Colors.white,
-                                              size: 20,
+                                              color: const Color(0xFF00796B),
+                                              size: 18,
                                             ),
                                           ],
                                         ),
                                       ),
                                     ),
 
-                                    // ── SubTopics ──────────────
-                                    if (isMainExpanded)
-                                      ...mainTopic.subTopics.map((subTopic) {
-                                        final subKey =
-                                            '${mainTopic.title}_${subTopic.title}';
-                                        final isSubExpanded =
-                                            _expandedSubTopics.contains(subKey);
-
-                                        final mp4Count = subTopic.videos
-                                            .where((v) => v.isMp4)
-                                            .length;
-                                        final linkCount = subTopic.videos
-                                            .where((v) => v.isExternal)
-                                            .length;
-
-                                        return Column(
-                                          children: [
-                                            GestureDetector(
-                                              onTap: () => setState(() {
-                                                isSubExpanded
-                                                    ? _expandedSubTopics
-                                                        .remove(subKey)
-                                                    : _expandedSubTopics
-                                                        .add(subKey);
-                                              }),
-                                              child: Container(
-                                                margin: const EdgeInsets.only(
-                                                  left: 28,
-                                                  right: 12,
-                                                  top: 4,
-                                                ),
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                  horizontal: 14,
-                                                  vertical: 10,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color:
-                                                      const Color(0xFFE0F2F1),
-                                                  borderRadius:
-                                                      BorderRadius.circular(10),
-                                                  border: Border.all(
-                                                    color: const Color(
-                                                        0xFF80CBC4),
-                                                    width: 1,
-                                                  ),
-                                                ),
-                                                child: Row(
-                                                  children: [
-                                                    const Icon(
-                                                      Icons.folder_open_outlined,
-                                                      color: Color(0xFF00796B),
-                                                      size: 18,
-                                                    ),
-                                                    const SizedBox(width: 8),
-                                                    Expanded(
-                                                      child: Text(
-                                                        subTopic.title,
-                                                        style: const TextStyle(
-                                                          color:
-                                                              Color(0xFF004D40),
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                          fontSize: 13,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    if (mp4Count > 0)
-                                                      _SubtopicCount(
-                                                        count: mp4Count,
-                                                        isExternal: false,
-                                                      ),
-                                                    if (mp4Count > 0 &&
-                                                        linkCount > 0)
-                                                      const SizedBox(width: 4),
-                                                    if (linkCount > 0)
-                                                      _SubtopicCount(
-                                                        count: linkCount,
-                                                        isExternal: true,
-                                                      ),
-                                                    const SizedBox(width: 6),
-                                                    Icon(
-                                                      isSubExpanded
-                                                          ? Icons
-                                                              .keyboard_arrow_up
-                                                          : Icons
-                                                              .keyboard_arrow_down,
-                                                      color: const Color(
-                                                          0xFF00796B),
-                                                      size: 18,
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-
-                                            // ── Video Items ──────
-                                            if (isSubExpanded)
-                                              ...subTopic.videos.map((video) {
-                                                return VideoHoverItem(
-                                                  video: video,
-                                                  onTap: () {
-                                                    _onHoverExit();
-                                                    widget.videoProvider
-                                                        .selectVideo(video);
-                                                    _closeLibrary();
-                                                  },
-                                                  onHoverEnter: (pos, size) =>
-                                                      _onHoverEnter(
-                                                          video, pos, size),
-                                                  onHoverExit: _onHoverExit,
-                                                );
-                                              }),
-                                          ],
+                                    // ── Video Items ──────
+                                    if (isSubExpanded)
+                                      ...subTopic.videos.map((video) {
+                                        return VideoHoverItem(
+                                          video: video,
+                                          onTap: () {
+                                            _onHoverExit();
+                                            widget.videoProvider.selectVideo(
+                                              video,
+                                            );
+                                            _closeLibrary();
+                                          },
+                                          onHoverEnter: (pos, size) =>
+                                              _onHoverEnter(video, pos, size),
+                                          onHoverExit: _onHoverExit,
                                         );
                                       }),
                                   ],
                                 );
-                              },
-                            ),
+                              }),
+                          ],
+                        );
+                      },
+                    ),
             ),
           ],
         ),
@@ -681,10 +732,7 @@ class _ExternalLinkCardState extends State<_ExternalLinkCard>
                       ),
                       Text(
                         'Opens in browser · No preview',
-                        style: TextStyle(
-                          color: Colors.white38,
-                          fontSize: 10,
-                        ),
+                        style: TextStyle(color: Colors.white38, fontSize: 10),
                       ),
                     ],
                   ),
@@ -755,14 +803,10 @@ class _SubtopicCount extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: BoxDecoration(
-        color: isExternal
-            ? const Color(0xFFFFF3E0)
-            : const Color(0xFFE8F5E9),
+        color: isExternal ? const Color(0xFFFFF3E0) : const Color(0xFFE8F5E9),
         borderRadius: BorderRadius.circular(4),
         border: Border.all(
-          color: isExternal
-              ? const Color(0xFFFFB74D)
-              : const Color(0xFF81C784),
+          color: isExternal ? const Color(0xFFFFB74D) : const Color(0xFF81C784),
         ),
       ),
       child: Text(
@@ -770,9 +814,7 @@ class _SubtopicCount extends StatelessWidget {
         style: TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.w600,
-          color: isExternal
-              ? const Color(0xFFE65100)
-              : const Color(0xFF2E7D32),
+          color: isExternal ? const Color(0xFFE65100) : const Color(0xFF2E7D32),
         ),
       ),
     );
@@ -817,24 +859,19 @@ class _LegendBadge extends StatelessWidget {
   }
 }
 
-
 // ─────────────────────────────────────────────
 // YOUTUBE / EXTERNAL MINI PREVIEW
 // ─────────────────────────────────────────────
 class _YoutubePreviewCard extends StatefulWidget {
   final VideoItem video;
 
-  const _YoutubePreviewCard({
-    required this.video,
-  });
+  const _YoutubePreviewCard({required this.video});
 
   @override
-  State<_YoutubePreviewCard> createState() =>
-      _YoutubePreviewCardState();
+  State<_YoutubePreviewCard> createState() => _YoutubePreviewCardState();
 }
 
-class _YoutubePreviewCardState
-    extends State<_YoutubePreviewCard>
+class _YoutubePreviewCardState extends State<_YoutubePreviewCard>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ac;
 
@@ -848,25 +885,15 @@ class _YoutubePreviewCardState
 
     _ac = AnimationController(
       vsync: this,
-      duration: const Duration(
-        milliseconds: 220,
-      ),
+      duration: const Duration(milliseconds: 220),
     );
 
-    _fade = CurvedAnimation(
-      parent: _ac,
-      curve: Curves.easeOut,
-    );
+    _fade = CurvedAnimation(parent: _ac, curve: Curves.easeOut);
 
     _slide = Tween<Offset>(
       begin: const Offset(0, 0.05),
       end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _ac,
-        curve: Curves.easeOut,
-      ),
-    );
+    ).animate(CurvedAnimation(parent: _ac, curve: Curves.easeOut));
 
     _ac.forward();
   }
@@ -928,19 +955,13 @@ class _YoutubePreviewCardState
           child: Stack(
             fit: StackFit.expand,
             children: [
-
               // ─────────────────────────────
               // THUMBNAIL
               // ─────────────────────────────
               if (thumb.isNotEmpty)
-                Image.network(
-                  thumb,
-                  fit: BoxFit.cover,
-                )
+                Image.network(thumb, fit: BoxFit.cover)
               else
-                Container(
-                  color: Colors.black87,
-                ),
+                Container(color: Colors.black87),
 
               // ─────────────────────────────
               // DARK OVERLAY
@@ -990,17 +1011,12 @@ class _YoutubePreviewCardState
                   ),
                   decoration: BoxDecoration(
                     color: Colors.red,
-                    borderRadius:
-                        BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(20),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        Icons.play_arrow,
-                        color: Colors.white,
-                        size: 12,
-                      ),
+                      Icon(Icons.play_arrow, color: Colors.white, size: 12),
                       SizedBox(width: 4),
                       Text(
                         'YOUTUBE',
@@ -1042,4 +1058,3 @@ class _YoutubePreviewCardState
     );
   }
 }
-

@@ -38,10 +38,11 @@ class _SessionScreenState extends State<SessionScreen>
   String _currentPrompt = kPausePrompts[0];
 
   // ── TIMER STATE ──────────────────────────────
-  int _timerSeconds = 0; // ← start from 0
+  int _timerSeconds = 0;
   bool _timerVisible = false;
   bool _timerRunning = false;
   Timer? _countdownTimer;
+  int _stopGeneration = 0; // invalidates stale Future.delayed hide-callbacks
 
   @override
   void initState() {
@@ -59,43 +60,40 @@ class _SessionScreenState extends State<SessionScreen>
 
   void _onTimerButtonPressed() {
     if (_timerRunning) {
-      // If running → stop and hide
       _stopTimer();
     } else {
-      // If not running → reset and start
       _startTimer();
     }
   }
 
   void _startTimer() {
+    _stopGeneration++; // invalidate any pending hide-callback from a previous stop
+    _countdownTimer?.cancel();
+
     setState(() {
-      _timerSeconds = 0; // ← reset to 0
+      _timerSeconds = 0;
       _timerVisible = true;
       _timerRunning = true;
     });
 
-    _countdownTimer?.cancel();
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) {
         t.cancel();
         return;
       }
-      setState(() {
-        _timerSeconds++; // ← count up, no stop condition
-      });
+      setState(() => _timerSeconds++);
     });
   }
 
   void _stopTimer() {
     _countdownTimer?.cancel();
-    setState(() {
-      _timerRunning = false;
-      // keep _timerVisible = true for 2 sec delay
-    });
+    final generation = ++_stopGeneration; // capture this stop's generation
 
-    // wait 2 seconds then hide
+    setState(() => _timerRunning = false);
+
     Future.delayed(const Duration(seconds: 10), () {
       if (!mounted) return;
+      if (_stopGeneration != generation) return; // timer was restarted — abort hide
       setState(() {
         _timerVisible = false;
         _timerSeconds = 0;
@@ -136,7 +134,14 @@ class _SessionScreenState extends State<SessionScreen>
 
   Future<void> _endSession() async {
     try {
-      _stopTimer(); // stop timer on session end
+      _stopGeneration++; // cancel any pending hide-callback
+      _countdownTimer?.cancel();
+      setState(() {
+        _timerRunning = false;
+        _timerVisible = false;
+        _timerSeconds = 0;
+      });
+
       await _video.stop();
       await _session.endSession();
 
@@ -157,7 +162,7 @@ class _SessionScreenState extends State<SessionScreen>
 
   @override
   void dispose() {
-    _countdownTimer?.cancel(); // always cancel timer
+    _countdownTimer?.cancel();
     _session.removeListener(_onSessionChange);
     _video.removeListener(_onVideoChange);
     _reward.removeListener(_onRewardChange);
@@ -208,9 +213,8 @@ class _SessionScreenState extends State<SessionScreen>
                         rewardProvider: _reward,
                         onEndSession: _endSession,
                         sessionProvider: _session,
-                        onTimerPressed:
-                            _onTimerButtonPressed, // ← pass callback
-                        timerRunning: _timerRunning, // ← pass state
+                        onTimerPressed: _onTimerButtonPressed,
+                        timerRunning: _timerRunning,
                       ),
                   ],
                 ),
