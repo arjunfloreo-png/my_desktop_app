@@ -5,14 +5,23 @@ import 'package:permission_handler/permission_handler.dart';
 import '../models/user_role.dart';
 
 const String appId = "54bf8a5095374303aa14ff23c73bac0d";
-const String token =
-    "007eJxTYHC7e6Vn27QVr/Kd9T0tg+deY0+7s2g2n+XSqBMsF0wVCo0VGExNktIsEk0NLE2NzU2MDYwTEw1N0tKMjJPNjZMSkw1S5KtYsxoCGRkuCygwMEIhiM/HkJKamx+emlScn5ydWlLMwAAAPtwhXA==";
-const String channel = "demoWebsockets";
+// const String token =
+//     "007eJxTYPA4zhd6ue/9qycW3b9XeVoE1ITmVZzUWHKx68V78Xa1heUKDKYmSWkWiaYGlqbG5ibGBsaJiYYmaWlGxsnmxkmJyQYpYvfYshoCGRm8VZkZGKEQxOdjSEnNzQ9PTSrOT85OLSlmYAAA8uUjYA==";
+// const String channel = "demoWebsockets";
+
+/// UID reserved for the therapist's screen-share Agora engine (ScreenShareProvider).
+/// When the client sees this UID join/leave it knows screen sharing started/stopped.
+const int kScreenShareUid = 1001;
 
 class SessionProvider extends ChangeNotifier {
   final UserRole role;
-
-  SessionProvider({required this.role}) {
+  final String token;
+  final String channelName;
+  SessionProvider({
+    required this.role,
+    required this.token,
+    required this.channelName,
+  }) {
     _initAgora();
   }
 
@@ -26,7 +35,15 @@ class SessionProvider extends ChangeNotifier {
   bool isClientMuted = false;
   bool isTherapistVideoMuted = false;
   bool isClientVideoMuted = false;
+
+  /// Whether the LOCAL user is sharing their screen.
   bool isScreenSharing = false;
+
+  /// Whether the REMOTE peer is sharing their screen.
+  /// Set to true when uid [kScreenShareUid] joins the channel,
+  /// false when it leaves — no ambiguous video-state heuristics needed.
+  bool isRemoteScreenSharing = false;
+
   Future<void> _initAgora() async {
     await [Permission.microphone, Permission.camera].request();
 
@@ -44,14 +61,37 @@ class SessionProvider extends ChangeNotifier {
           localUserJoined = true;
           notifyListeners();
         },
+
         onUserJoined: (_, uid, __) {
-          remoteUid = uid;
+          if (uid == kScreenShareUid) {
+            // Therapist's screen-share engine joined → screen share started.
+            isRemoteScreenSharing = true;
+            debugPrint(
+              '📡 Screen share UID $uid joined → isRemoteScreenSharing=true',
+            );
+          } else {
+            // Regular camera participant (client uid=2 or therapist uid=1).
+            remoteUid = uid;
+            debugPrint('📡 Camera UID $uid joined → remoteUid=$remoteUid');
+          }
           notifyListeners();
         },
-        onUserOffline: (_, __, ___) {
-          remoteUid = null;
+
+        onUserOffline: (_, uid, __) {
+          if (uid == kScreenShareUid) {
+            // Screen-share engine left → screen share stopped.
+            isRemoteScreenSharing = false;
+            debugPrint(
+              '📡 Screen share UID $uid left → isRemoteScreenSharing=false',
+            );
+          } else {
+            remoteUid = null;
+            isRemoteScreenSharing = false;
+            debugPrint('📡 Camera UID $uid left → remoteUid=null');
+          }
           notifyListeners();
         },
+
         onError: (err, msg) => debugPrint('❌ Agora: $err – $msg'),
       ),
     );
@@ -59,10 +99,14 @@ class SessionProvider extends ChangeNotifier {
     await engine.setClientRole(role: ClientRoleType.clientRoleBroadcaster);
     await engine.enableVideo();
     await engine.startPreview();
+
+    debugPrint("TOKEN => $token");
+    debugPrint("CHANNEL => $channelName");
+
     await engine.joinChannel(
       token: token,
-      channelId: channel,
-      uid: 0,
+      channelId: channelName,
+      uid: role == UserRole.therapist ? 1 : 2,
       options: const ChannelMediaOptions(),
     );
   }
@@ -71,9 +115,7 @@ class SessionProvider extends ChangeNotifier {
     try {
       await engine.startScreenCaptureByScreenRect(
         screenRect: const Rectangle(x: 0, y: 0, width: 1920, height: 1080),
-
         regionRect: const Rectangle(x: 100, y: 100, width: 800, height: 600),
-
         captureParams: const ScreenCaptureParameters(
           dimensions: VideoDimensions(width: 1280, height: 720),
           frameRate: 15,
@@ -91,21 +133,18 @@ class SessionProvider extends ChangeNotifier {
       );
 
       isScreenSharing = true;
-
       notifyListeners();
 
-      debugPrint("Screen share started");
+      debugPrint('Screen share started');
     } catch (e) {
-      debugPrint("Screen Share Error: $e");
+      debugPrint('Screen Share Error: $e');
     }
   }
 
   Future<void> stopScreenShare() async {
     try {
-      // Stop screen capture
       await engine.stopScreenCapture();
 
-      // Switch back to camera
       await engine.updateChannelMediaOptions(
         const ChannelMediaOptions(
           publishScreenTrack: false,
@@ -114,12 +153,11 @@ class SessionProvider extends ChangeNotifier {
       );
 
       isScreenSharing = false;
-
       notifyListeners();
 
-      debugPrint("Screen sharing stopped");
+      debugPrint('Screen sharing stopped');
     } catch (e) {
-      debugPrint("Stop Share Error: $e");
+      debugPrint('Stop Share Error: $e');
     }
   }
 

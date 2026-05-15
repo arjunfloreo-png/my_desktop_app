@@ -3,14 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:webview_windows/webview_windows.dart';
 
-import '../provider/video_provider.dart';
+import '../models/user_role.dart';
 import '../provider/screen_share_provider.dart';
+import '../provider/session_provider.dart';
+import '../provider/video_provider.dart';
 import 'bouncing_character.dart';
 import 'bubble_tail_painter.dart';
 
 class VideoPanel extends StatefulWidget {
   final VideoProvider videoProvider;
-  final ScreenShareProvider screenShareProvider; // ← injected
+  final ScreenShareProvider screenShareProvider;
+  final SessionProvider sessionProvider; // ← NEW: needed to read isRemoteScreenSharing
+  final UserRole role;                   // ← NEW: needed to decide what to show
   final bool showCharacter;
   final String currentPrompt;
 
@@ -18,6 +22,8 @@ class VideoPanel extends StatefulWidget {
     super.key,
     required this.videoProvider,
     required this.screenShareProvider,
+    required this.sessionProvider,
+    required this.role,
     required this.showCharacter,
     required this.currentPrompt,
   });
@@ -40,15 +46,24 @@ class _VideoPanelState extends State<VideoPanel> {
   @override
   Widget build(BuildContext context) {
     final screenShare = widget.screenShareProvider;
+    final session = widget.sessionProvider;
     final videoProvider = widget.videoProvider;
 
-    // ── SCREEN SHARE MODE (exact TherapistScreen behaviour) ──
-    // Show WebView when showBrowser is true, placeholder when false
-    if (screenShare.isSharing || screenShare.showBrowser) {
+    // ── CLIENT: show a placeholder when therapist is screen sharing ──────────
+    // The client doesn't run the WebView / ScreenShareProvider browser.
+    // Instead, the therapist's screen share is received as a remote Agora video
+    // stream and rendered in CameraTile (isRemote: true) automatically once
+    // isRemoteScreenSharing flips to true via onRemoteVideoStateChanged.
+    // VideoPanel on the client side therefore shows nothing special during
+    // screen share — fall through to normal video/placeholder logic.
+
+    // ── THERAPIST SCREEN SHARE MODE (WebView panel) ──────────────────────────
+    if (widget.role == UserRole.therapist &&
+        (screenShare.isSharing || screenShare.showBrowser)) {
       return Stack(
         fit: StackFit.expand,
         children: [
-          // WEBVIEW — same as TherapistScreen main panel
+          // WebView
           ClipRRect(
             child: screenShare.showBrowser
                 ? Webview(screenShare.webviewController)
@@ -67,7 +82,7 @@ class _VideoPanelState extends State<VideoPanel> {
                   ),
           ),
 
-          // STOP SHARE BUTTON overlay (top-right)
+          // Stop Share button
           Positioned(
             top: 12,
             right: 12,
@@ -89,7 +104,7 @@ class _VideoPanelState extends State<VideoPanel> {
             ),
           ),
 
-          // LOADING INDICATOR while initializing
+          // Loading indicator
           if (screenShare.isInitializing)
             Container(
               color: Colors.black.withOpacity(0.45),
@@ -108,7 +123,7 @@ class _VideoPanelState extends State<VideoPanel> {
               ),
             ),
 
-          // ERROR BANNER
+          // Error banner
           if (screenShare.error != null)
             Positioned(
               bottom: 12,
@@ -134,7 +149,33 @@ class _VideoPanelState extends State<VideoPanel> {
       );
     }
 
-    // ── NORMAL VIDEO MODE ────────────────────────
+    // ── CLIENT: therapist is screen sharing → show a "Screen Share Active" banner
+    // The actual stream is in the main CameraTile (isRemote: true) which
+    // automatically switches sourceType to videoSourceScreen via isRemoteScreenSharing.
+    if (widget.role == UserRole.client && session.isRemoteScreenSharing) {
+      return Container(
+        color: const Color(0xFF1A2B1A),
+        child: const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.screen_share, color: Color(0xFF00bd74), size: 40),
+              SizedBox(height: 12),
+              Text(
+                'Therapist is sharing their screen',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // ── NORMAL VIDEO MODE ────────────────────────────────────────────────────
     if (!videoProvider.isVideoMode) {
       return _placeholder(context);
     }
@@ -143,9 +184,7 @@ class _VideoPanelState extends State<VideoPanel> {
       fit: StackFit.expand,
       children: [
         _buildVideoLayer(),
-
         if (videoProvider.isBuffering) _buildBuffering(),
-
         if (widget.showCharacter) _buildCharacterOverlay(),
       ],
     );
@@ -289,10 +328,7 @@ class _VideoPanelState extends State<VideoPanel> {
         child: GestureDetector(
           onTap: videoProvider.toggleLibrary,
           child: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 24,
-              vertical: 12,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(30),

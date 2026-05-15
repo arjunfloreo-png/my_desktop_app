@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../models/user_role.dart';
+import '../provider/role_selection_provider.dart';
 import 'session_screen.dart';
 
 class RoleSelectionScreen extends StatelessWidget {
@@ -24,7 +26,11 @@ class RoleSelectionScreen extends StatelessWidget {
                   shape: BoxShape.circle,
                   border: Border.all(color: const Color(0xff005735), width: 3),
                 ),
-                child: Image.asset('assets/images/floreo_logo.png',width: 150,height: 150,)
+                child: Image.asset(
+                  'assets/images/floreo_logo.png',
+                  width: 150,
+                  height: 150,
+                ),
                 //  const Center(
                 //   child: Text('🌿', style: TextStyle(fontSize: 36)),
                 // ),
@@ -42,10 +48,7 @@ class RoleSelectionScreen extends StatelessWidget {
               const SizedBox(height: 8),
               const Text(
                 'Select your role to join the session',
-                style: TextStyle(
-                  fontSize: 15,
-                  color: Colors.black45,
-                ),
+                style: TextStyle(fontSize: 15, color: Colors.black45),
               ),
               const SizedBox(height: 48),
 
@@ -78,13 +81,41 @@ class RoleSelectionScreen extends StatelessWidget {
     );
   }
 
-  void _navigate(BuildContext context, UserRole role) {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => SessionScreen(role: role)),
+  Future<void> _navigate(BuildContext context, UserRole role) async {
+    final provider = Provider.of<RoleSelectionProvider>(context, listen: false);
+
+    final response = await provider.generateAgoraToken(
+      channelName: "demoWebsockets",
+      uid: role == UserRole.therapist ? 1 : 2,
+      role: "publisher",
     );
+
+    if (response != null && context.mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SessionScreen(
+            role: role,
+
+            token: response.token,
+            channelName: response.channelName,
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(provider.error ?? 'Something went wrong')),
+      );
+    }
   }
 }
+//   void _navigate(BuildContext context, UserRole role) {
+//     Navigator.pushReplacement(
+//       context,
+//       MaterialPageRoute(builder: (_) => SessionScreen(role: role)),
+//     );
+//   }
+// }
 
 class _RoleCard extends StatelessWidget {
   final String emoji;
@@ -98,7 +129,6 @@ class _RoleCard extends StatelessWidget {
   const _RoleCard({
     required this.emoji,
 
-    
     required this.title,
     required this.subtitle,
     required this.color,
@@ -153,7 +183,11 @@ class _RoleCard extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(Icons.arrow_forward_ios, color: textColor.withOpacity(0.6), size: 16),
+            Icon(
+              Icons.arrow_forward_ios,
+              color: textColor.withOpacity(0.6),
+              size: 16,
+            ),
           ],
         ),
       ),
