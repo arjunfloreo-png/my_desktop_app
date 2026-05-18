@@ -13,8 +13,8 @@ import 'bubble_tail_painter.dart';
 class VideoPanel extends StatefulWidget {
   final VideoProvider videoProvider;
   final ScreenShareProvider screenShareProvider;
-  final SessionProvider sessionProvider; // ← NEW: needed to read isRemoteScreenSharing
-  final UserRole role;                   // ← NEW: needed to decide what to show
+  final SessionProvider sessionProvider;
+  final UserRole role;
   final bool showCharacter;
   final String currentPrompt;
 
@@ -49,21 +49,12 @@ class _VideoPanelState extends State<VideoPanel> {
     final session = widget.sessionProvider;
     final videoProvider = widget.videoProvider;
 
-    // ── CLIENT: show a placeholder when therapist is screen sharing ──────────
-    // The client doesn't run the WebView / ScreenShareProvider browser.
-    // Instead, the therapist's screen share is received as a remote Agora video
-    // stream and rendered in CameraTile (isRemote: true) automatically once
-    // isRemoteScreenSharing flips to true via onRemoteVideoStateChanged.
-    // VideoPanel on the client side therefore shows nothing special during
-    // screen share — fall through to normal video/placeholder logic.
-
-    // ── THERAPIST SCREEN SHARE MODE (WebView panel) ──────────────────────────
+    // ── THERAPIST SCREEN SHARE MODE ──────────────────────────────────────────
     if (widget.role == UserRole.therapist &&
         (screenShare.isSharing || screenShare.showBrowser)) {
       return Stack(
         fit: StackFit.expand,
         children: [
-          // WebView
           ClipRRect(
             child: screenShare.showBrowser
                 ? Webview(screenShare.webviewController)
@@ -82,12 +73,14 @@ class _VideoPanelState extends State<VideoPanel> {
                   ),
           ),
 
-          // Stop Share button
+          // Stop Share button — pass mainEngine to restart cam after stop
           Positioned(
             top: 12,
             right: 12,
             child: ElevatedButton.icon(
-              onPressed: screenShare.stopShare,
+              onPressed: () => screenShare.stopShare(
+                mainEngine: session.engine,
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
@@ -104,7 +97,6 @@ class _VideoPanelState extends State<VideoPanel> {
             ),
           ),
 
-          // Loading indicator
           if (screenShare.isInitializing)
             Container(
               color: Colors.black.withOpacity(0.45),
@@ -123,7 +115,6 @@ class _VideoPanelState extends State<VideoPanel> {
               ),
             ),
 
-          // Error banner
           if (screenShare.error != null)
             Positioned(
               bottom: 12,
@@ -149,9 +140,7 @@ class _VideoPanelState extends State<VideoPanel> {
       );
     }
 
-    // ── CLIENT: therapist is screen sharing → show a "Screen Share Active" banner
-    // The actual stream is in the main CameraTile (isRemote: true) which
-    // automatically switches sourceType to videoSourceScreen via isRemoteScreenSharing.
+    // ── CLIENT: therapist is screen sharing ──────────────────────────────────
     if (widget.role == UserRole.client && session.isRemoteScreenSharing) {
       return Container(
         color: const Color(0xFF1A2B1A),
@@ -190,9 +179,6 @@ class _VideoPanelState extends State<VideoPanel> {
     );
   }
 
-  // ─────────────────────────────────────────────
-  // VIDEO LAYER
-  // ─────────────────────────────────────────────
   Widget _buildVideoLayer() {
     final videoProvider = widget.videoProvider;
     final url = videoProvider.selectedVideoUrl ?? '';
@@ -219,9 +205,6 @@ class _VideoPanelState extends State<VideoPanel> {
     return _buildMp4Layer();
   }
 
-  // ─────────────────────────────────────────────
-  // MP4 PLAYER
-  // ─────────────────────────────────────────────
   Widget _buildMp4Layer() {
     final videoProvider = widget.videoProvider;
 
@@ -243,9 +226,6 @@ class _VideoPanelState extends State<VideoPanel> {
     );
   }
 
-  // ─────────────────────────────────────────────
-  // BUFFERING
-  // ─────────────────────────────────────────────
   Widget _buildBuffering() {
     return Container(
       color: Colors.black.withOpacity(0.45),
@@ -258,9 +238,6 @@ class _VideoPanelState extends State<VideoPanel> {
     );
   }
 
-  // ─────────────────────────────────────────────
-  // CHARACTER OVERLAY
-  // ─────────────────────────────────────────────
   Widget _buildCharacterOverlay() {
     return IgnorePointer(
       child: Container(
@@ -316,9 +293,6 @@ class _VideoPanelState extends State<VideoPanel> {
     );
   }
 
-  // ─────────────────────────────────────────────
-  // EMPTY PLACEHOLDER
-  // ─────────────────────────────────────────────
   Widget _placeholder(BuildContext context) {
     final videoProvider = widget.videoProvider;
 

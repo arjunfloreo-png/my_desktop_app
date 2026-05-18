@@ -37,37 +37,6 @@ class CameraTile extends StatelessWidget {
   Widget _videoView() {
     // ── REMOTE USER VIEW ──────────────────────────
     if (isRemote) {
-      if (session.remoteUid == null && !session.isRemoteScreenSharing) {
-        return Center(
-          child: Text(
-            session.role == UserRole.therapist
-                ? 'Waiting for client...'
-                : 'Waiting for therapist...',
-            style: TextStyle(
-              color: Colors.white54,
-              fontSize: large ? 15 : 11,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        );
-      }
-
-      // Only therapist renders the screen-share stream.
-      // Client always shows therapist camera — never screen-share UID.
-      if (session.isRemoteScreenSharing && session.role == UserRole.therapist) {
-        return AgoraVideoView(
-          controller: VideoViewController.remote(
-            rtcEngine: session.engine,
-            canvas: const VideoCanvas(
-              uid: kScreenShareUid,
-              sourceType: VideoSourceType.videoSourceRemote,
-            ),
-            connection: RtcConnection(channelId: session.channelName),
-          ),
-        );
-      }
-
-      // Normal camera view (client always; therapist when no screen share)
       if (session.remoteUid == null) {
         return Center(
           child: Text(
@@ -83,12 +52,15 @@ class CameraTile extends StatelessWidget {
         );
       }
 
+      // Always bind to camera uid (remoteUid).
+      // Screen share stream NEVER rendered here —
+      // handled separately via _screenShareTile() in SessionScreen.
       return AgoraVideoView(
         controller: VideoViewController.remote(
           rtcEngine: session.engine,
           canvas: VideoCanvas(
             uid: session.remoteUid,
-            sourceType: VideoSourceType.videoSourceRemote, // ✅ correct for remote user
+            sourceType: VideoSourceType.videoSourceRemote,
           ),
           connection: RtcConnection(channelId: session.channelName),
         ),
@@ -118,11 +90,14 @@ class CameraTile extends StatelessWidget {
         ? (session.role == UserRole.therapist ? 'Client' : 'Therapist')
         : (session.role == UserRole.therapist ? 'Therapist' : 'Client');
 
-    // Show "Screen Share" label only on therapist side
-    final displayLabel =
-        (isRemote && session.isRemoteScreenSharing && session.role == UserRole.therapist)
-            ? 'Screen Share'
-            : label;
+    // Therapist side → 'Screen Share' | Client side → 'LIVE' when share active
+    final displayLabel = (isRemote && session.isRemoteScreenSharing)
+        ? (session.role == UserRole.therapist ? 'Screen Share' : 'LIVE')
+        : label;
+
+    final dotColor = (isRemote && session.isRemoteScreenSharing)
+        ? const Color(0xFF00bd74)
+        : Colors.red;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -137,12 +112,7 @@ class CameraTile extends StatelessWidget {
             width: 6,
             height: 6,
             decoration: BoxDecoration(
-              // Green dot only on therapist side when screen sharing
-              color: (isRemote &&
-                      session.isRemoteScreenSharing &&
-                      session.role == UserRole.therapist)
-                  ? const Color(0xFF00bd74)
-                  : Colors.red,
+              color: dotColor,
               shape: BoxShape.circle,
             ),
           ),
