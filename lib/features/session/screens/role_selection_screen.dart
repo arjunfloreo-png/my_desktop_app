@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../models/user_role.dart';
 import '../provider/role_selection_provider.dart';
+import '../provider/session_provider.dart';
 import 'session_screen.dart';
 
 class RoleSelectionScreen extends StatelessWidget {
@@ -90,15 +91,26 @@ class RoleSelectionScreen extends StatelessWidget {
       role: "publisher",
     );
 
+    // FIX: generate separate token for screen share uid 1001
+    String? screenShareToken;
+    if (role == UserRole.therapist) {
+      final ssResponse = await provider.generateAgoraToken(
+        channelName: "demoWebsockets",
+        uid: kScreenShareUid, // 1001
+        role: "publisher",
+      );
+      screenShareToken = ssResponse?.token;
+    }
+
     if (response != null && context.mounted) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
           builder: (_) => SessionScreen(
             role: role,
-
             token: response.token,
             channelName: response.channelName,
+            screenShareToken: screenShareToken, // ← pass it
           ),
         ),
       );

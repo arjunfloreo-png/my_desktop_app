@@ -24,12 +24,14 @@ class SessionScreen extends StatefulWidget {
   final UserRole role;
   final String? channelName;
   final String? token;
+  final String? screenShareToken; // ← ADD
 
   const SessionScreen({
     super.key,
     required this.role,
     this.channelName,
     this.token,
+    this.screenShareToken, // ← ADD
   });
 
   @override
@@ -54,7 +56,8 @@ class _SessionScreenState extends State<SessionScreen>
   Timer? _countdownTimer;
   int _stopGeneration = 0;
   bool _wasSharing = false;
-  int _localCamRebuildKey = 0; // bumped after share stops → forces AgoraVideoView recreate
+  int _localCamRebuildKey =
+      0; // bumped after share stops → forces AgoraVideoView recreate
 
   @override
   void initState() {
@@ -67,7 +70,7 @@ class _SessionScreenState extends State<SessionScreen>
     _video = VideoProvider();
     _reward = RewardProvider(vsync: this);
     _screenShare = ScreenShareProvider(
-      token: widget.token!,
+      token: widget.screenShareToken!, // ← use screenShareToken
       channelName: widget.channelName!,
     );
 
