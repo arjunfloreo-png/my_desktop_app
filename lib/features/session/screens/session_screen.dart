@@ -53,8 +53,9 @@ class _SessionScreenState extends State<SessionScreen>
   bool _timerRunning = false;
   Timer? _countdownTimer;
   int _stopGeneration = 0;
-  // add field
   bool _wasSharing = false;
+  int _localCamRebuildKey = 0; // bumped after share stops → forces AgoraVideoView recreate
+
   @override
   void initState() {
     super.initState();
@@ -82,10 +83,11 @@ class _SessionScreenState extends State<SessionScreen>
 
   void _onScreenShareChange() {
     if (!mounted) return;
-    // detect share stopped → force local cam rebuild
     if (_wasSharing && !_screenShare.isSharing) {
+      // Share stopped — cam already restarted in stopShare before notify.
+      // Bump key → AgoraVideoView recreates → binds to live cam.
       _wasSharing = false;
-      setState(() {});
+      setState(() => _localCamRebuildKey++);
     } else {
       if (_screenShare.isSharing) _wasSharing = true;
       setState(() {});
@@ -361,7 +363,6 @@ class _SessionScreenState extends State<SessionScreen>
     );
   }
 
-  // ── VideoPanel (therapist only) ──────────────────────────────────────────
   Widget _videoPanel() {
     return VideoPanel(
       videoProvider: _video,
@@ -373,7 +374,6 @@ class _SessionScreenState extends State<SessionScreen>
     );
   }
 
-  // ── Remote camera tile — always binds to remoteUid (camera stream only) ──
   Widget _remoteCameraTile({bool large = false}) {
     return KeyedSubtree(
       key: ValueKey('remote_cam_${_session.remoteUid}'),
@@ -381,7 +381,6 @@ class _SessionScreenState extends State<SessionScreen>
     );
   }
 
-  // ── Screen share tile (kScreenShareUid=1001 stream) ───────────────────────
   Widget _screenShareTile() {
     return KeyedSubtree(
       key: const ValueKey('screen_share_tile'),
@@ -398,7 +397,6 @@ class _SessionScreenState extends State<SessionScreen>
     );
   }
 
-  // ── Shared tile box decorator ────────────────────────────────────────────
   Widget _tileBox(Widget child, {double radius = 20}) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
@@ -412,15 +410,9 @@ class _SessionScreenState extends State<SessionScreen>
     );
   }
 
-  // ── Main layout ──────────────────────────────────────────────────────────
   Widget _mainLayout(BuildContext context) {
     final isTherapist = widget.role == UserRole.therapist;
 
-    // ══════════════════════════════════════════════════════════════════════
-    // THERAPIST LAYOUT
-    // !swap → main: client cam   | side top: video panel
-    //  swap → main: video panel  | side top: client cam
-    // ══════════════════════════════════════════════════════════════════════
     if (isTherapist) {
       final Widget mainContent = _session.isSwapped
           ? _videoPanel()
@@ -448,8 +440,11 @@ class _SessionScreenState extends State<SessionScreen>
                 const SizedBox(height: 8),
                 Expanded(
                   child: _tileBox(
+                    // Key stable during share → no flicker.
+                    // Bumps once on share-stop → AgoraVideoView recreates
+                    // → re-binds to live cam (already restarted in stopShare).
                     KeyedSubtree(
-                      key: ValueKey('local_cam_${_screenShare.isSharing}'),
+                      key: ValueKey('local_cam_$_localCamRebuildKey'),
                       child: CameraTile(session: _session, isRemote: false),
                     ),
                     radius: 16,
@@ -462,13 +457,7 @@ class _SessionScreenState extends State<SessionScreen>
       );
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    // CLIENT LAYOUT — mirrors therapist structure
-    // !swap → main: therapist cam  | side top: black or screen share
-    //  swap → main: black/share    | side top: therapist cam
-    // Local cam always side bottom.
-    // Double-tap side top → toggleSwap.
-    // ══════════════════════════════════════════════════════════════════════
+    // CLIENT LAYOUT
     final bool shareActive = _session.isRemoteScreenSharing;
 
     final Widget sideTopContent = shareActive

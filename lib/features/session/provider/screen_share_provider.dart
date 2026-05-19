@@ -85,7 +85,25 @@ class ScreenShareProvider extends ChangeNotifier {
     debugPrint('=== END WINDOWS ===');
   }
 
-  Future<void> _startWindowShare(ScreenCaptureSourceInfo source) async {
+  // ── FIX: accept mainEngine, suspend cam BEFORE share starts ──
+  Future<void> _startWindowShare(ScreenCaptureSourceInfo source, {RtcEngine? mainEngine}) async {
+    // Suspend main engine cam first to avoid pipeline conflict
+    try {
+      if (mainEngine != null) {
+        await mainEngine.muteLocalVideoStream(true);
+        await mainEngine.enableLocalVideo(false);
+        await mainEngine.updateChannelMediaOptions(
+          const ChannelMediaOptions(
+            publishCameraTrack: false,
+            publishMicrophoneTrack: false,
+          ),
+        );
+        debugPrint('Main engine cam suspended before share');
+      }
+    } catch (e) {
+      debugPrint('Main engine suspend error: $e');
+    }
+
     await _engine!.startScreenCaptureByWindowId(
       windowId: source.sourceId!,
       regionRect: const Rectangle(x: 0, y: 0, width: 0, height: 0),
@@ -110,7 +128,8 @@ class ScreenShareProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> openBrowserAndShare() async {
+  // ── FIX: pass mainEngine through to _startWindowShare ──
+  Future<void> openBrowserAndShare({RtcEngine? mainEngine}) async {
     if (isInitializing) return;
     isInitializing = true;
     error = null;
@@ -138,7 +157,7 @@ class ScreenShareProvider extends ChangeNotifier {
               name.contains('msedge');
         });
         debugPrint('Sharing window: ${browserWindow.sourceName}');
-        await _startWindowShare(browserWindow);
+        await _startWindowShare(browserWindow, mainEngine: mainEngine); // ← pass mainEngine
       } catch (e) {
         debugPrint('Window not found: $e');
         error = 'Browser window not found. Please open browser first.';
@@ -151,8 +170,7 @@ class ScreenShareProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
-
-  Future<void> stopShare({RtcEngine? mainEngine}) async {
+ Future<void> stopShare({RtcEngine? mainEngine}) async {
     if (!isSharing) return;
 
     try {
@@ -168,7 +186,7 @@ class ScreenShareProvider extends ChangeNotifier {
         ),
       );
       await _engine?.leaveChannel();
-      await _engine?.release();
+      // REMOVED: release() — caused async thread to hold Windows cam lock
       _engine = null;
     } catch (e) {
       debugPrint('stopShare error: $e');
@@ -176,24 +194,31 @@ class ScreenShareProvider extends ChangeNotifier {
 
     isSharing = false;
     showBrowser = false;
-    notifyListeners();
 
-    // Restart main engine cam — enable + preview + republish
+    await Future.delayed(const Duration(milliseconds: 200));
+
     try {
       if (mainEngine != null) {
+        await mainEngine.stopPreview();
+        await mainEngine.enableLocalVideo(true);
         await mainEngine.enableVideo();
         await mainEngine.startPreview();
+        await mainEngine.muteLocalVideoStream(false);
         await mainEngine.updateChannelMediaOptions(
           const ChannelMediaOptions(
             publishCameraTrack: true,
             publishMicrophoneTrack: true,
           ),
         );
-        debugPrint('Main engine cam restarted + republished');
+        debugPrint('Main engine cam fully restored');
       }
     } catch (e) {
       debugPrint('Main engine restart error: $e');
     }
+
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    notifyListeners();
 
     try {
       await webviewController.loadUrl('about:blank');
