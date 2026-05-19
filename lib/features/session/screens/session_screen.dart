@@ -70,7 +70,7 @@ class _SessionScreenState extends State<SessionScreen>
     _video = VideoProvider();
     _reward = RewardProvider(vsync: this);
     _screenShare = ScreenShareProvider(
-      token: widget.screenShareToken!, // ← use screenShareToken
+      token: widget.screenShareToken?? '', // ← use screenShareToken
       channelName: widget.channelName!,
     );
 
