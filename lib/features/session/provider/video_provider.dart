@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
+import '../../../services/socket_service.dart';
 import '../models/therpy_video_item_model.dart';
 import '../models/video_item.dart';
 
@@ -22,30 +23,23 @@ List<MainTopic> _mapApiToTopics(TherapyVideoItemModel model) {
         final videos = <VideoItem>[];
 
         for (final c in subtopicEl.contents) {
-          final rawType =
-              (c.videoType).trim().toLowerCase();
+          final rawType = (c.videoType).trim().toLowerCase();
 
-          final vType = rawType == 'mp4'
-              ? VideoType.mp4
-              : VideoType.external;
+          final vType = rawType == 'mp4' ? VideoType.mp4 : VideoType.external;
 
           String url;
 
           if (vType == VideoType.mp4) {
             url = _nonEmpty(c.videoUrl) ?? '';
           } else {
-            url = _nonEmpty(c.videoLink) ??
-                _nonEmpty(c.videoUrl) ??
-                '';
+            url = _nonEmpty(c.videoLink) ?? _nonEmpty(c.videoUrl) ?? '';
           }
 
           if (url.isEmpty) continue;
 
           videos.add(
             VideoItem(
-              title: c.title.isNotEmpty
-                  ? c.title
-                  : c.name,
+              title: c.title.isNotEmpty ? c.title : c.name,
               url: url,
               thumbnail: '',
               videoType: vType,
@@ -68,11 +62,7 @@ List<MainTopic> _mapApiToTopics(TherapyVideoItemModel model) {
     if (subTopics.isEmpty) continue;
 
     result.add(
-      MainTopic(
-        title:
-            therapyMsg.therapy.therapyType,
-        subTopics: subTopics,
-      ),
+      MainTopic(title: therapyMsg.therapy.therapyType, subTopics: subTopics),
     );
   }
 
@@ -80,9 +70,7 @@ List<MainTopic> _mapApiToTopics(TherapyVideoItemModel model) {
 }
 
 String? _nonEmpty(String? s) =>
-    (s != null && s.trim().isNotEmpty)
-        ? s.trim()
-        : null;
+    (s != null && s.trim().isNotEmpty) ? s.trim() : null;
 
 class VideoProvider extends ChangeNotifier {
   late final Player _player;
@@ -117,8 +105,7 @@ class VideoProvider extends ChangeNotifier {
   Duration duration = Duration.zero;
 
   // ONLY FOR SLIDER/TIMER UI
-  final ValueNotifier<int> progressNotifier =
-      ValueNotifier(0);
+  final ValueNotifier<int> progressNotifier = ValueNotifier(0);
 
   double volume = 1.0;
 
@@ -129,18 +116,15 @@ class VideoProvider extends ChangeNotifier {
   Future<void> Function()? externalPause;
   Future<void> Function()? externalStop;
 
-  Future<void> Function(Duration position)?
-      externalSeek;
+  Future<void> Function(Duration position)? externalSeek;
 
   VideoProvider() {
     _player = Player();
 
-    videoController =
-        VideoController(_player);
+    videoController = VideoController(_player);
 
     // MP4 POSITION
-    _posSub =
-        _player.stream.position.listen((p) {
+    _posSub = _player.stream.position.listen((p) {
       if (!isExternal) {
         position = p;
 
@@ -150,8 +134,7 @@ class VideoProvider extends ChangeNotifier {
     });
 
     // MP4 DURATION
-    _durSub =
-        _player.stream.duration.listen((d) {
+    _durSub = _player.stream.duration.listen((d) {
       if (!isExternal) {
         duration = d;
 
@@ -160,16 +143,14 @@ class VideoProvider extends ChangeNotifier {
     });
 
     // BUFFERING
-    _bufferSub =
-        _player.stream.buffering.listen((b) {
+    _bufferSub = _player.stream.buffering.listen((b) {
       isBuffering = b;
 
       notifyListeners();
     });
 
     // PLAY / PAUSE
-    _playSub =
-        _player.stream.playing.listen((playing) {
+    _playSub = _player.stream.playing.listen((playing) {
       if (!isExternal) {
         isVideoPlaying = playing;
 
@@ -182,16 +163,12 @@ class VideoProvider extends ChangeNotifier {
 
   Player get player => _player;
 
-  bool get isExternal =>
-      _currentVideoType ==
-      VideoType.external;
+  bool get isExternal => _currentVideoType == VideoType.external;
 
   bool get isYoutube => isExternal;
 
   // EXTERNAL PLAY STATE
-  void setExternalPlayingState(
-    bool playing,
-  ) {
+  void setExternalPlayingState(bool playing) {
     if (!isExternal) return;
 
     // PREVENT EXTRA REBUILDS
@@ -213,28 +190,19 @@ class VideoProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await http.get(
-        Uri.parse(_apiUrl),
-      );
+      final response = await http.get(Uri.parse(_apiUrl));
 
       if (response.statusCode == 200) {
-        final jsonMap =
-            jsonDecode(response.body)
-                as Map<String, dynamic>;
+        final jsonMap = jsonDecode(response.body) as Map<String, dynamic>;
 
-        final model =
-            TherapyVideoItemModel.fromJson(
-          jsonMap,
-        );
+        final model = TherapyVideoItemModel.fromJson(jsonMap);
 
         topics = _mapApiToTopics(model);
       } else {
-        topicsError =
-            'Server error: ${response.statusCode}';
+        topicsError = 'Server error: ${response.statusCode}';
       }
     } catch (e) {
-      topicsError =
-          'Failed to load videos';
+      topicsError = 'Failed to load videos';
     } finally {
       isLoadingTopics = false;
 
@@ -243,20 +211,16 @@ class VideoProvider extends ChangeNotifier {
   }
 
   // SELECT VIDEO
-  Future<void> selectVideo(
-    VideoItem item,
-  ) async {
+  Future<void> selectVideo(VideoItem item) async {
     if (!isExternal && isVideoMode) {
       await _player.stop();
     }
 
     selectedVideoUrl = item.url;
 
-    selectedThumbnail =
-        item.thumbnail;
+    selectedThumbnail = item.thumbnail;
 
-    _currentVideoType =
-        item.videoType;
+    _currentVideoType = item.videoType;
 
     isVideoMode = true;
 
@@ -271,23 +235,23 @@ class VideoProvider extends ChangeNotifier {
 
       notifyListeners();
 
-      await _player.open(
-        Media(item.url),
-        play: true,
-      );
+      await _player.open(Media(item.url), play: true);
     }
+
+    // ← ADD (after setting selectedVideoUrl)
+    SocketService().selectVideo(
+      item.url, // videoId
+      item.url, // videoUrl
+      title: item.title,
+    );
 
     notifyListeners();
   }
 
   // PLAY URL
-  Future<void> playFromUrl(
-    String url, {
-    VideoType type = VideoType.mp4,
-  }) async {
+  Future<void> playFromUrl(String url, {VideoType type = VideoType.mp4}) async {
     try {
-      if (!isExternal &&
-          isVideoMode) {
+      if (!isExternal && isVideoMode) {
         await _player.stop();
       }
 
@@ -295,15 +259,13 @@ class VideoProvider extends ChangeNotifier {
 
       selectedVideoUrl = url;
 
-      selectedThumbnail =
-          _extractThumbnail(url);
+      selectedThumbnail = _extractThumbnail(url);
 
       _currentVideoType = type;
 
       notifyListeners();
 
-      if (type ==
-          VideoType.external) {
+      if (type == VideoType.external) {
         isVideoMode = true;
 
         isVideoPlaying = true;
@@ -317,10 +279,7 @@ class VideoProvider extends ChangeNotifier {
         return;
       }
 
-      await _player.open(
-        Media(url),
-        play: true,
-      );
+      await _player.open(Media(url), play: true);
 
       isVideoMode = true;
 
@@ -328,25 +287,18 @@ class VideoProvider extends ChangeNotifier {
 
       notifyListeners();
     } catch (e) {
-      debugPrint(
-          'playFromUrl error: $e');
+      debugPrint('playFromUrl error: $e');
     }
   }
 
-  String? _extractThumbnail(
-    String url,
-  ) {
+  String? _extractThumbnail(String url) {
     try {
       final uri = Uri.parse(url);
 
-      if (uri.host.contains(
-              'youtube.com') ||
-          uri.host.contains(
-              'youtu.be')) {
+      if (uri.host.contains('youtube.com') || uri.host.contains('youtu.be')) {
         String? id;
 
-        if (uri.host.contains(
-            'youtu.be')) {
+        if (uri.host.contains('youtu.be')) {
           id = uri.pathSegments.first;
         } else {
           id = uri.queryParameters['v'];
@@ -373,6 +325,7 @@ class VideoProvider extends ChangeNotifier {
     } else {
       await _player.pause();
     }
+    SocketService().pauseVideo(position.inMilliseconds / 1000.0);
 
     notifyListeners();
   }
@@ -386,18 +339,17 @@ class VideoProvider extends ChangeNotifier {
       await _player.play();
     }
 
+    //select video on  web socket
+    SocketService().playVideo(position.inMilliseconds / 1000.0);
+
     notifyListeners();
   }
 
   Future<void> togglePlayPause() async {
-    isVideoPlaying
-        ? await pause()
-        : await resume();
+    isVideoPlaying ? await pause() : await resume();
   }
 
-  Future<void> seek(
-    Duration to,
-  ) async {
+  Future<void> seek(Duration to) async {
     if (isExternal) {
       await externalSeek?.call(to);
 
@@ -408,6 +360,8 @@ class VideoProvider extends ChangeNotifier {
       position = to;
     }
 
+    SocketService().seekVideo(to.inMilliseconds / 1000.0);
+
     // ONLY UPDATE SLIDER
     progressNotifier.value++;
   }
@@ -415,10 +369,7 @@ class VideoProvider extends ChangeNotifier {
   Future<void> skipBack() async {
     await seek(
       Duration(
-        milliseconds:
-            (position.inMilliseconds -
-                    5000)
-                .clamp(
+        milliseconds: (position.inMilliseconds - 5000).clamp(
           0,
           duration.inMilliseconds,
         ),
@@ -429,10 +380,7 @@ class VideoProvider extends ChangeNotifier {
   Future<void> skipForward() async {
     await seek(
       Duration(
-        milliseconds:
-            (position.inMilliseconds +
-                    5000)
-                .clamp(
+        milliseconds: (position.inMilliseconds + 5000).clamp(
           0,
           duration.inMilliseconds,
         ),
@@ -440,31 +388,24 @@ class VideoProvider extends ChangeNotifier {
     );
   }
 
-  Future<void> setVolume(
-    double v,
-  ) async {
+  Future<void> setVolume(double v) async {
     if (!isExternal) {
-      await _player.setVolume(
-        v * 100,
-      );
+      await _player.setVolume(v * 100);
     }
 
     volume = v;
 
     isVolMuted = v == 0;
 
+    // ← ADD
+
+    SocketService().setVolume(v);
+
     notifyListeners();
   }
 
   Future<void> toggleMute() async {
-    setVolume(
-      isVolMuted
-          ? volume.clamp(
-              0.1,
-              1.0,
-            )
-          : 0,
-    );
+    setVolume(isVolMuted ? volume.clamp(0.1, 1.0) : 0);
   }
 
   void toggleLibrary() {
@@ -497,18 +438,10 @@ class VideoProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  String formatDuration(
-    Duration d,
-  ) {
-    final m = d.inMinutes
-        .remainder(60)
-        .toString()
-        .padLeft(2, '0');
+  String formatDuration(Duration d) {
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
 
-    final s = d.inSeconds
-        .remainder(60)
-        .toString()
-        .padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
 
     return '$m:$s';
   }

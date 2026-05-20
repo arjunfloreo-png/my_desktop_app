@@ -6,8 +6,10 @@ import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../services/socket_service.dart';
 import '../models/session_constants.dart';
 import '../models/user_role.dart';
+import '../models/video_item.dart';
 import '../provider/reward_provider.dart';
 import '../provider/screen_share_provider.dart';
 import '../provider/session_provider.dart';
@@ -82,7 +84,66 @@ class _SessionScreenState extends State<SessionScreen>
     if (widget.role == UserRole.therapist) {
       _screenShare.init();
     }
+    setupSocket();
   }
+
+  void setupSocket() {
+  final socket = SocketService();
+
+  socket.onVideoSelect = (d) {
+    _video.playFromUrl(
+      d['videoUrl'],
+      type: d['videoUrl'].toString().contains('youtube')
+          ? VideoType.external
+          : VideoType.mp4,
+    );
+  };
+
+  socket.onVideoPlay = (d) {
+    final t = (d['currentTime'] as num).toDouble();
+    _video.seek(Duration(milliseconds: (t * 1000).toInt()));
+    _video.resume();
+  };
+
+  socket.onVideoPause = (d) {
+    final t = (d['currentTime'] as num).toDouble();
+    _video.seek(Duration(milliseconds: (t * 1000).toInt()));
+    _video.pause();
+  };
+
+  socket.onVideoSeek = (d) {
+    final t = (d['currentTime'] as num).toDouble();
+    _video.seek(Duration(milliseconds: (t * 1000).toInt()));
+  };
+
+  socket.onVideoVolume = (d) {
+    final v = (d['volume'] as num).toDouble();
+    _video.setVolume(v);
+  };
+
+  socket.onButtonAction = (d) {
+    _handleButtonAction(d['action']);
+  };
+
+  socket.onPeerConnected = (d) => setState(() {});
+  socket.onPeerDisconnected = (d) => setState(() {});
+
+  // Client: sync on join
+  if (widget.role == UserRole.client) {
+    socket.syncRequest();
+  }
+}
+
+void _handleButtonAction(String action) {
+  // Map server actions to your existing UI
+  switch (action) {
+    case 'DIVE_IN':     /* show dive in UI */ break;
+    case 'ASKING':      /* show asking UI  */ break;
+    case 'LET_ME_SHARE': _screenShare.openBrowserAndShare(); break;
+    case 'REWARD_BOX':  _reward.toggleDrawer(); break;
+    case 'TAKE_ME_BACK': /* navigate back  */ break;
+  }
+}
 
   void _onScreenShareChange() {
     if (!mounted) return;
@@ -170,6 +231,8 @@ class _SessionScreenState extends State<SessionScreen>
   }
 
   Future<void> _endSession() async {
+      SocketService().disconnect();
+
     try {
       _stopGeneration++;
       _countdownTimer?.cancel();
