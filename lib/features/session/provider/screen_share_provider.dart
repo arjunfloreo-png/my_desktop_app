@@ -149,7 +149,8 @@ class ScreenShareProvider extends ChangeNotifier {
       try {
         final browserWindow = _windows.firstWhere((e) {
           final name = e.sourceName?.toLowerCase() ?? '';
-          return name.contains('floreo') ||
+          return
+          //name.contains('floreo') ||
               name.contains('chrome') ||
               name.contains('google') ||
               name.contains('edge') ||

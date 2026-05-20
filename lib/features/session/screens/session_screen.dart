@@ -461,19 +461,18 @@ class _SessionScreenState extends State<SessionScreen>
     }
 
     // CLIENT LAYOUT
-    final bool shareActive = _session.isRemoteScreenSharing;
+   // CLIENT LAYOUT
+final bool shareActive = _session.isRemoteScreenSharing;
 
-    final Widget sideTopContent = shareActive
-        ? _screenShareTile()
+final Widget mainContent = _session.isSwapped
+    ? _videoPanel()
+    : _remoteCameraTile();  // ← remote camera always in main
+
+final Widget sideTop = _session.isSwapped
+    ? _remoteCameraTile(large: true)
+    : shareActive
+        ? _screenShareTile()  // ← screen share in side top
         : Container(color: Colors.black87);
-
-    final Widget mainContent = _session.isSwapped
-        ? (shareActive ? _screenShareTile() : Container(color: Colors.black87))
-        : _remoteCameraTile();
-
-    final Widget sideTop = _session.isSwapped
-        ? _remoteCameraTile(large: true)
-        : sideTopContent;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,

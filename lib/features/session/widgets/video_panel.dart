@@ -74,26 +74,49 @@ class _VideoPanelState extends State<VideoPanel> {
           ),
 
           // Stop Share button — pass mainEngine to restart cam after stop
+          // Replace the Stop Share Positioned block with this Row of buttons:
           Positioned(
             top: 12,
             right: 12,
-            child: ElevatedButton.icon(
-              onPressed: () => screenShare.stopShare(
-                mainEngine: session.engine,
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
+            child: Row(
+              children: [
+                // ── BACK BUTTON ──
+                ElevatedButton.icon(
+                  onPressed: () => screenShare.webviewController.goBack(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black54,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                  ),
+                  icon: const Icon(Icons.arrow_back, size: 18),
+                  label: const Text('Back'),
                 ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
+                const SizedBox(width: 8),
+                // ── STOP SHARE BUTTON ──
+                ElevatedButton.icon(
+                  onPressed: () =>
+                      screenShare.stopShare(mainEngine: session.engine),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                  ),
+                  icon: const Icon(Icons.stop_screen_share, size: 18),
+                  label: const Text('Stop Share'),
                 ),
-              ),
-              icon: const Icon(Icons.stop_screen_share, size: 18),
-              label: const Text('Stop Share'),
+              ],
             ),
           ),
 

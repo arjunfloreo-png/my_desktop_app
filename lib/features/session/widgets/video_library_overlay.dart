@@ -29,7 +29,7 @@ class _VideoLibraryOverlayState extends State<VideoLibraryOverlay> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   String _searchQuery = '';
-
+      
   final Set<String> _expandedMainTopics = {};
   final Set<String> _expandedSubTopics = {};
 
