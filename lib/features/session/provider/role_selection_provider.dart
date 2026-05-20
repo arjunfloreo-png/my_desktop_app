@@ -2,11 +2,12 @@
 
 import 'dart:convert';
 
+import 'package:floreo/features/session/models/user_role.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import '../../../services/socket_service.dart';
 import '../models/role_based_reponse_model.dart';
-
 
 class RoleSelectionProvider extends ChangeNotifier {
   bool _isLoading = false;
@@ -24,6 +25,7 @@ class RoleSelectionProvider extends ChangeNotifier {
     required String channelName,
     required int uid,
     required String role,
+    required String roleName,
   }) async {
     print('Generating token for channel: $channelName, uid: $uid, role: $role');
     try {
@@ -33,9 +35,7 @@ class RoleSelectionProvider extends ChangeNotifier {
 
       final response = await http.post(
         Uri.parse(_baseUrl),
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           "channelName": channelName,
           "uid": uid,
@@ -47,6 +47,17 @@ class RoleSelectionProvider extends ChangeNotifier {
         final data = jsonDecode(response.body);
 
         _response = RoleBasedResponseModel.fromJson(data);
+
+        // connect socket + join session
+        final socket = SocketService();
+        socket.connect();
+
+        // Use channelName as sessionId (matches your backend logic)
+        socket.joinSession(
+          channelName,
+          // ignore: unrelated_type_equality_checks
+          roleName,
+        );
 
         return _response;
       } else {

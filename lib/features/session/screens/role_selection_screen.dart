@@ -89,6 +89,7 @@ class RoleSelectionScreen extends StatelessWidget {
       channelName: "demoWebsockets",
       uid: role == UserRole.therapist ? 1 : 2,
       role: "publisher",
+      roleName: role == UserRole.therapist ? 'therapist' : 'client',
     );
 
     // FIX: generate separate token for screen share uid 1001
@@ -98,6 +99,7 @@ class RoleSelectionScreen extends StatelessWidget {
         channelName: "demoWebsockets",
         uid: kScreenShareUid, // 1001
         role: "publisher",
+        roleName: 'screen_share',
       );
       screenShareToken = ssResponse?.token;
     }

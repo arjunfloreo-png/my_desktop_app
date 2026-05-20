@@ -52,14 +52,16 @@ class CameraTile extends StatelessWidget {
         );
       }
 
-      // Always bind to camera uid (remoteUid).
-      // Screen share stream NEVER rendered here —
-      // handled separately via _screenShareTile() in SessionScreen.
+      // Key on uid ensures AgoraVideoView fully recreates if uid ever changes.
+      // Parent KeyedSubtree bumps on share start/stop → this view recreates
+      // → Agora native renderer rebinds cleanly to the camera stream.
       return AgoraVideoView(
+        key: ValueKey('agora_remote_${session.remoteUid}'),
         controller: VideoViewController.remote(
           rtcEngine: session.engine,
           canvas: VideoCanvas(
             uid: session.remoteUid,
+            renderMode: RenderModeType.renderModeHidden, // ← prevents blank on rebind
             sourceType: VideoSourceType.videoSourceRemote,
           ),
           connection: RtcConnection(channelId: session.channelName),
@@ -78,9 +80,13 @@ class CameraTile extends StatelessWidget {
     }
 
     return AgoraVideoView(
+      key: const ValueKey('agora_local'),
       controller: VideoViewController(
         rtcEngine: session.engine,
-        canvas: const VideoCanvas(uid: 0),
+        canvas: const VideoCanvas(
+          uid: 0,
+          renderMode: RenderModeType.renderModeHidden,
+        ),
       ),
     );
   }
@@ -90,7 +96,6 @@ class CameraTile extends StatelessWidget {
         ? (session.role == UserRole.therapist ? 'Client' : 'Therapist')
         : (session.role == UserRole.therapist ? 'Therapist' : 'Client');
 
-    // Therapist side → 'Screen Share' | Client side → 'LIVE' when share active
     final displayLabel = (isRemote && session.isRemoteScreenSharing)
         ? (session.role == UserRole.therapist ? 'Screen Share' : 'LIVE')
         : label;
@@ -131,18 +136,19 @@ class CameraTile extends StatelessWidget {
   }
 
   Widget _controls() {
+    // Fixed: read correct mute state per tile (remote vs local, role-aware)
     final isMuted = isRemote
         ? (session.role == UserRole.therapist
-            ? session.isTherapistMuted
-            : session.isClientMuted)
+            ? session.isClientMuted      // therapist sees client's state
+            : session.isTherapistMuted)  // client sees therapist's state
         : (session.role == UserRole.therapist
-            ? session.isTherapistMuted
-            : session.isClientMuted);
+            ? session.isTherapistMuted   // therapist sees own state
+            : session.isClientMuted);    // client sees own state
 
     final isVideoMuted = isRemote
         ? (session.role == UserRole.therapist
-            ? session.isTherapistVideoMuted
-            : session.isClientVideoMuted)
+            ? session.isClientVideoMuted
+            : session.isTherapistVideoMuted)
         : (session.role == UserRole.therapist
             ? session.isTherapistVideoMuted
             : session.isClientVideoMuted);

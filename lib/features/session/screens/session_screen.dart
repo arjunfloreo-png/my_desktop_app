@@ -24,14 +24,14 @@ class SessionScreen extends StatefulWidget {
   final UserRole role;
   final String? channelName;
   final String? token;
-  final String? screenShareToken; // ← ADD
+  final String? screenShareToken;
 
   const SessionScreen({
     super.key,
     required this.role,
     this.channelName,
     this.token,
-    this.screenShareToken, // ← ADD
+    this.screenShareToken,
   });
 
   @override
@@ -56,8 +56,8 @@ class _SessionScreenState extends State<SessionScreen>
   Timer? _countdownTimer;
   int _stopGeneration = 0;
   bool _wasSharing = false;
-  int _localCamRebuildKey =
-      0; // bumped after share stops → forces AgoraVideoView recreate
+  int _localCamRebuildKey = 0;
+  int _remoteCamRebuildKey = 0; // ← NEW
 
   @override
   void initState() {
@@ -70,7 +70,7 @@ class _SessionScreenState extends State<SessionScreen>
     _video = VideoProvider();
     _reward = RewardProvider(vsync: this);
     _screenShare = ScreenShareProvider(
-      token: widget.screenShareToken ?? '', // ← use screenShareToken
+      token: widget.screenShareToken ?? '',
       channelName: widget.channelName!,
     );
 
@@ -87,13 +87,19 @@ class _SessionScreenState extends State<SessionScreen>
   void _onScreenShareChange() {
     if (!mounted) return;
     if (_wasSharing && !_screenShare.isSharing) {
-      // Share stopped — cam already restarted in stopShare before notify.
-      // Bump key → AgoraVideoView recreates → binds to live cam.
+      // Share stopped — bump both keys → force AgoraVideoView recreate
       _wasSharing = false;
-      setState(() => _localCamRebuildKey++);
+      setState(() {
+        _localCamRebuildKey++;
+        _remoteCamRebuildKey++; // ← NEW
+      });
     } else {
-      if (_screenShare.isSharing) _wasSharing = true;
-      setState(() {});
+      if (_screenShare.isSharing) {
+        _wasSharing = true;
+        setState(() => _remoteCamRebuildKey++); // ← NEW: bump on share start too
+      } else {
+        setState(() {});
+      }
     }
   }
 
@@ -379,7 +385,7 @@ class _SessionScreenState extends State<SessionScreen>
 
   Widget _remoteCameraTile({bool large = false}) {
     return KeyedSubtree(
-      key: ValueKey('remote_cam_${_session.remoteUid}'),
+      key: ValueKey('remote_cam_${_session.remoteUid}_$_remoteCamRebuildKey'), // ← UPDATED
       child: CameraTile(session: _session, isRemote: true, large: large),
     );
   }
@@ -443,9 +449,6 @@ class _SessionScreenState extends State<SessionScreen>
                 const SizedBox(height: 8),
                 Expanded(
                   child: _tileBox(
-                    // Key stable during share → no flicker.
-                    // Bumps once on share-stop → AgoraVideoView recreates
-                    // → re-binds to live cam (already restarted in stopShare).
                     KeyedSubtree(
                       key: ValueKey('local_cam_$_localCamRebuildKey'),
                       child: CameraTile(session: _session, isRemote: false),
