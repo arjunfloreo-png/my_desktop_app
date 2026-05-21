@@ -3,13 +3,17 @@ import 'package:lottie/lottie.dart';
 
 import '../models/chaacter_mpdel.dart';
 
-
 const double kCharacterWidth = 130.0;
 
 class BouncingCharacter extends StatefulWidget {
-  final Character? character; // null = lottie fallback
+  final Character? character;
+  final bool faceOnly; // ← NEW: hides name/role badge
 
-  const BouncingCharacter({super.key, this.character});
+  const BouncingCharacter({
+    super.key,
+    this.character,
+    this.faceOnly = false,
+  });
 
   @override
   State<BouncingCharacter> createState() => _BouncingCharacterState();
@@ -83,28 +87,34 @@ class _BouncingCharacterState extends State<BouncingCharacter>
                 Icon(Icons.person, size: 60, color: character.bgColor),
           ),
         ),
-        // const SizedBox(height: 10),
-        // Container(
-        //   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-        //   decoration: BoxDecoration(
-        //     color: Colors.black.withOpacity(0.6),
-        //     borderRadius: BorderRadius.circular(20),
-        //     border: Border.all(color: character.bgColor.withOpacity(0.6), width: 1),
-        //   ),
-        //   child: Column(
-        //     children: [
-        //       Text(
-        //         character.name,
-        //         style: const TextStyle(
-        //             color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
-        //       ),
-        //       Text(
-        //         character.role,
-        //         style: TextStyle(color: character.bgColor, fontSize: 10),
-        //       ),
-        //     ],
-        //   ),
-        // ),
+        // ← only show badge when not faceOnly
+        if (!widget.faceOnly) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(20),
+              border:
+                  Border.all(color: character.bgColor.withOpacity(0.6), width: 1),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  character.name,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700),
+                ),
+                Text(
+                  character.role,
+                  style: TextStyle(color: character.bgColor, fontSize: 10),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }

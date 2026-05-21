@@ -2,7 +2,6 @@
 
 import 'dart:convert';
 
-import 'package:floreo/features/session/models/user_role.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 

@@ -14,7 +14,7 @@ class VideoPanel extends StatefulWidget {
   final VideoProvider videoProvider;
   final ScreenShareProvider screenShareProvider;
   final SessionProvider sessionProvider;
-  final RewardProvider rewardProvider; // ← NEW: live source
+  final RewardProvider rewardProvider;
   final UserRole role;
   final bool showCharacter;
   final String currentPrompt;
@@ -24,7 +24,7 @@ class VideoPanel extends StatefulWidget {
     required this.videoProvider,
     required this.screenShareProvider,
     required this.sessionProvider,
-    required this.rewardProvider, // ← NEW
+    required this.rewardProvider,
     required this.role,
     required this.showCharacter,
     required this.currentPrompt,
@@ -40,7 +40,6 @@ class _VideoPanelState extends State<VideoPanel> {
   @override
   void initState() {
     super.initState();
-    // rebuild when selectedCharacter changes
     widget.rewardProvider.addListener(_onRewardChanged);
   }
 
@@ -207,7 +206,6 @@ class _VideoPanelState extends State<VideoPanel> {
   Widget _buildVideoLayer() {
     final videoProvider = widget.videoProvider;
     final url = videoProvider.selectedVideoUrl ?? '';
-    debugPrint('Selected Video => external=${videoProvider.isExternal} url=$url');
 
     if (videoProvider.isExternal) {
       return Container(
@@ -253,33 +251,38 @@ class _VideoPanelState extends State<VideoPanel> {
   }
 
   Widget _buildCharacterOverlay() {
-    // ← reads live from provider every rebuild
     final character = widget.rewardProvider.selectedCharacter;
 
     return IgnorePointer(
-      child: Container(
-        color: Colors.black.withOpacity(0.42),
-        child: Center(
-          child: TweenAnimationBuilder<double>(
-            key: ValueKey(_lastPrompt),
-            tween: Tween(begin: 0.0, end: 1.0),
-            duration: const Duration(milliseconds: 450),
-            curve: Curves.easeOutBack,
-            builder: (context, value, child) {
-              return Opacity(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // dim overlay
+          Container(color: Colors.black.withOpacity(0.42)),
+          // character bottom-left
+          Positioned(
+            bottom: 16,
+            left: 16,
+            child: TweenAnimationBuilder<double>(
+              key: ValueKey(_lastPrompt),
+              tween: Tween(begin: 0.0, end: 1.0),
+              duration: const Duration(milliseconds: 450),
+              curve: Curves.easeOutBack,
+              builder: (context, value, child) => Opacity(
                 opacity: value.clamp(0.0, 1.0),
-                child: Transform.scale(scale: value, child: child),
-              );
-            },
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: 4),
-                BouncingCharacter(character: character), // ← live value
-              ],
+                child: Transform.scale(
+                  alignment: Alignment.bottomLeft,
+                  scale: value,
+                  child: child,
+                ),
+              ),
+              child: BouncingCharacter(
+                character: character,
+                faceOnly: true,
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
