@@ -370,6 +370,7 @@ class VideoProvider extends ChangeNotifier {
     await seek(
       Duration(
         milliseconds: (position.inMilliseconds - 5000).clamp(
+          
           0,
           duration.inMilliseconds,
         ),

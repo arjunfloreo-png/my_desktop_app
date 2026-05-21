@@ -4,16 +4,17 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:webview_windows/webview_windows.dart';
 
 import '../models/user_role.dart';
+import '../provider/reward_provider.dart';
 import '../provider/screen_share_provider.dart';
 import '../provider/session_provider.dart';
 import '../provider/video_provider.dart';
 import 'bouncing_character.dart';
-import 'bubble_tail_painter.dart';
 
 class VideoPanel extends StatefulWidget {
   final VideoProvider videoProvider;
   final ScreenShareProvider screenShareProvider;
   final SessionProvider sessionProvider;
+  final RewardProvider rewardProvider; // ← NEW: live source
   final UserRole role;
   final bool showCharacter;
   final String currentPrompt;
@@ -23,6 +24,7 @@ class VideoPanel extends StatefulWidget {
     required this.videoProvider,
     required this.screenShareProvider,
     required this.sessionProvider,
+    required this.rewardProvider, // ← NEW
     required this.role,
     required this.showCharacter,
     required this.currentPrompt,
@@ -36,11 +38,32 @@ class _VideoPanelState extends State<VideoPanel> {
   String? _lastPrompt;
 
   @override
+  void initState() {
+    super.initState();
+    // rebuild when selectedCharacter changes
+    widget.rewardProvider.addListener(_onRewardChanged);
+  }
+
+  @override
   void didUpdateWidget(covariant VideoPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.currentPrompt != oldWidget.currentPrompt) {
       _lastPrompt = widget.currentPrompt;
     }
+    if (widget.rewardProvider != oldWidget.rewardProvider) {
+      oldWidget.rewardProvider.removeListener(_onRewardChanged);
+      widget.rewardProvider.addListener(_onRewardChanged);
+    }
+  }
+
+  void _onRewardChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    widget.rewardProvider.removeListener(_onRewardChanged);
+    super.dispose();
   }
 
   @override
@@ -72,46 +95,30 @@ class _VideoPanelState extends State<VideoPanel> {
                     ),
                   ),
           ),
-
-          // Stop Share button — pass mainEngine to restart cam after stop
-          // Replace the Stop Share Positioned block with this Row of buttons:
           Positioned(
             top: 12,
             right: 12,
             child: Row(
               children: [
-                // ── BACK BUTTON ──
                 ElevatedButton.icon(
                   onPressed: () => screenShare.webviewController.goBack(),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.black54,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                   ),
                   icon: const Icon(Icons.arrow_back, size: 18),
                   label: const Text('Back'),
                 ),
                 const SizedBox(width: 8),
-                // ── STOP SHARE BUTTON ──
                 ElevatedButton.icon(
-                  onPressed: () =>
-                      screenShare.stopShare(mainEngine: session.engine),
+                  onPressed: () => screenShare.stopShare(mainEngine: session.engine),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                   ),
                   icon: const Icon(Icons.stop_screen_share, size: 18),
                   label: const Text('Stop Share'),
@@ -119,7 +126,6 @@ class _VideoPanelState extends State<VideoPanel> {
               ],
             ),
           ),
-
           if (screenShare.isInitializing)
             Container(
               color: Colors.black.withOpacity(0.45),
@@ -129,25 +135,19 @@ class _VideoPanelState extends State<VideoPanel> {
                   children: [
                     CircularProgressIndicator(color: Color(0xFF00bd74)),
                     SizedBox(height: 12),
-                    Text(
-                      'Starting screen share...',
-                      style: TextStyle(color: Colors.white, fontSize: 14),
-                    ),
+                    Text('Starting screen share...',
+                        style: TextStyle(color: Colors.white, fontSize: 14)),
                   ],
                 ),
               ),
             ),
-
           if (screenShare.error != null)
             Positioned(
               bottom: 12,
               left: 12,
               right: 12,
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
                   color: Colors.red.shade800,
                   borderRadius: BorderRadius.circular(10),
@@ -192,12 +192,14 @@ class _VideoPanelState extends State<VideoPanel> {
       return _placeholder(context);
     }
 
+    final showOverlay = widget.showCharacter || !videoProvider.isVideoPlaying;
+
     return Stack(
       fit: StackFit.expand,
       children: [
         _buildVideoLayer(),
         if (videoProvider.isBuffering) _buildBuffering(),
-        if (widget.showCharacter) _buildCharacterOverlay(),
+        if (showOverlay) _buildCharacterOverlay(),
       ],
     );
   }
@@ -205,12 +207,7 @@ class _VideoPanelState extends State<VideoPanel> {
   Widget _buildVideoLayer() {
     final videoProvider = widget.videoProvider;
     final url = videoProvider.selectedVideoUrl ?? '';
-
-    debugPrint(
-      'Selected Video => '
-      'external=${videoProvider.isExternal} '
-      'url=$url',
-    );
+    debugPrint('Selected Video => external=${videoProvider.isExternal} url=$url');
 
     if (videoProvider.isExternal) {
       return Container(
@@ -224,13 +221,10 @@ class _VideoPanelState extends State<VideoPanel> {
         ),
       );
     }
-
     return _buildMp4Layer();
   }
 
   Widget _buildMp4Layer() {
-    final videoProvider = widget.videoProvider;
-
     return Container(
       color: Colors.black,
       child: SizedBox.expand(
@@ -240,7 +234,7 @@ class _VideoPanelState extends State<VideoPanel> {
             width: 1920,
             height: 1080,
             child: Video(
-              controller: videoProvider.videoController,
+              controller: widget.videoProvider.videoController,
               controls: NoVideoControls,
             ),
           ),
@@ -253,15 +247,15 @@ class _VideoPanelState extends State<VideoPanel> {
     return Container(
       color: Colors.black.withOpacity(0.45),
       child: const Center(
-        child: CircularProgressIndicator(
-          color: Color(0xFF00bd74),
-          strokeWidth: 4,
-        ),
+        child: CircularProgressIndicator(color: Color(0xFF00bd74), strokeWidth: 4),
       ),
     );
   }
 
   Widget _buildCharacterOverlay() {
+    // ← reads live from provider every rebuild
+    final character = widget.rewardProvider.selectedCharacter;
+
     return IgnorePointer(
       child: Container(
         color: Colors.black.withOpacity(0.42),
@@ -280,34 +274,8 @@ class _VideoPanelState extends State<VideoPanel> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.72),
-                    border: Border.all(
-                      color: const Color(0xff00bd74),
-                      width: 1.5,
-                    ),
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  child: Text(
-                    widget.currentPrompt,
-                    style: const TextStyle(
-                      color: Color(0xff00e68a),
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                CustomPaint(
-                  size: const Size(16, 10),
-                  painter: BubbleTailPainter(),
-                ),
                 const SizedBox(height: 4),
-                const BouncingCharacter(),
+                BouncingCharacter(character: character), // ← live value
               ],
             ),
           ),
@@ -317,23 +285,18 @@ class _VideoPanelState extends State<VideoPanel> {
   }
 
   Widget _placeholder(BuildContext context) {
-    final videoProvider = widget.videoProvider;
-
     return Container(
       color: const Color(0xFFE8F5F0),
       child: Center(
         child: GestureDetector(
-          onTap: videoProvider.toggleLibrary,
+          onTap: widget.videoProvider.toggleLibrary,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(30),
               boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
-                  blurRadius: 12,
-                ),
+                BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 12),
               ],
             ),
             child: Row(
@@ -342,10 +305,7 @@ class _VideoPanelState extends State<VideoPanel> {
                 Container(
                   width: 10,
                   height: 10,
-                  decoration: const BoxDecoration(
-                    color: Colors.red,
-                    shape: BoxShape.circle,
-                  ),
+                  decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
                 ),
                 const SizedBox(width: 10),
                 const Text(

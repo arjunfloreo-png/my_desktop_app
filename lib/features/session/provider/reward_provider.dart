@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-
+import '../apis/reward_api.dart';
+import '../models/chaacter_mpdel.dart';
 import '../models/flying_badge.dart';
 import '../models/reward_badge.dart';
+import '../models/reward_box_model.dart';
 
 class RewardProvider extends ChangeNotifier {
   final TickerProvider vsync;
@@ -9,8 +11,8 @@ class RewardProvider extends ChangeNotifier {
   RewardProvider({required this.vsync});
 
   // ── Drawer ────────────────────────────────────────────────────
-  bool isDrawerOpen   = false;
-  bool showAllBadges  = false;
+  bool isDrawerOpen  = false;
+  bool showAllBadges = false;
 
   late final AnimationController drawerCtrl = AnimationController(
     vsync: vsync,
@@ -46,31 +48,51 @@ class RewardProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── ✅ Walking character animation ─────────────────────────────
+  // ── Walking character animation ────────────────────────────────
   late final AnimationController walkCtrl = AnimationController(
     vsync: vsync,
     duration: const Duration(seconds: 6),
-  )..repeat(); // loops continuously
+  )..repeat();
 
   late final Animation<double> walkAnim =
       Tween<double>(begin: 0, end: 1).animate(
         CurvedAnimation(parent: walkCtrl, curve: Curves.linear),
       );
 
-  // ── Badge list ────────────────────────────────────────────────
-  final List<RewardBadge> badges = [
-    RewardBadge(label: 'Good Job',        emoji: '😊', bgColor: const Color(0xFFE53935), name: 'Name Here'),
-    RewardBadge(label: "You're A Star",   emoji: '⭐', bgColor: const Color(0xFF1565C0), name: 'Name Here'),
-    RewardBadge(label: 'Well Done',       emoji: '😎', bgColor: const Color(0xFF0D1B2A), name: 'Name Here'),
-    RewardBadge(label: 'Fantastic Effort',emoji: '🤣', bgColor: const Color(0xFFE3F2FD), name: 'Name Here'),
-    RewardBadge(label: 'Keep It Up',      emoji: '💪', bgColor: const Color(0xFF388E3C), name: 'Name Here'),
-    RewardBadge(label: 'Super Work',      emoji: '🏆', bgColor: const Color(0xFFF57F17), name: 'Name Here'),
-    RewardBadge(label: 'Amazing!',        emoji: '🎉', bgColor: const Color(0xFF6A1B9A), name: 'Name Here'),
-    RewardBadge(label: 'Brilliant',       emoji: '🌟', bgColor: const Color(0xFF00838F), name: 'Name Here'),
-  ];
+  // ── API data ───────────────────────────────────────────────────
+  List<ReactionItem>  reactions     = [];
+  List<CharacterItem> apiCharacters = [];
+  bool   isLoading  = false;
+  String? fetchError;
 
-  void addBadge(RewardBadge badge) {
-    badges.add(badge);
+  Future<void> loadRewardBox() async {
+    isLoading  = true;
+    fetchError = null;
+    notifyListeners();
+    try {
+      final data  = await RewardApi.fetchRewardBox();
+      reactions     = data.reactions;
+      apiCharacters = data.characters;
+    } catch (e) {
+      fetchError = e.toString();
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // ── Selected character (used by VideoPanel / BouncingCharacter) ─
+  /// Backed by the old Character model so BouncingCharacter stays unchanged.
+  Character? selectedCharacter;
+
+  void selectCharacterFromApi(CharacterItem item) {
+    selectedCharacter = Character(
+      id:       item.name,
+      name:     item.name,
+      imageUrl: RewardApi.fullUrl(item.imagePath),
+      role:     '',
+      bgColor:  const Color(0xFF00bd74),
+    );
     notifyListeners();
   }
 
@@ -78,7 +100,17 @@ class RewardProvider extends ChangeNotifier {
   final List<FlyingBadge> flyingBadges = [];
   int _idCounter = 0;
 
+  /// Launch from API reaction
+  void launchReaction(ReactionItem reaction) {
+    _launch(reaction: reaction);
+  }
+
+  /// Legacy: launch from RewardBadge (keep for any existing callers)
   void launchBadge(RewardBadge badge) {
+    _launch(badge: badge);
+  }
+
+  void _launch({RewardBadge? badge, ReactionItem? reaction}) {
     final id   = _idCounter++;
     final ctrl = AnimationController(
       vsync: vsync,
@@ -105,12 +137,13 @@ class RewardProvider extends ChangeNotifier {
     ]).animate(ctrl);
 
     final flying = FlyingBadge(
-      id: id,
-      badge: badge,
+      id:        id,
+      badge:     badge,
+      reaction:  reaction,
       controller: ctrl,
-      slideY: slideY,
-      opacity: opacity,
-      scale: scale,
+      slideY:    slideY,
+      opacity:   opacity,
+      scale:     scale,
     );
 
     flyingBadges.add(flying);
@@ -126,13 +159,11 @@ class RewardProvider extends ChangeNotifier {
   @override
   void dispose() {
     drawerCtrl.dispose();
-    walkCtrl.dispose(); // ✅ important
-
+    walkCtrl.dispose();
     for (final fb in flyingBadges) {
       fb.controller.dispose();
     }
     flyingBadges.clear();
-
     super.dispose();
   }
 }

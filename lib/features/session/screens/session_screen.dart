@@ -71,6 +71,8 @@ class _SessionScreenState extends State<SessionScreen>
     );
     _video = VideoProvider();
     _reward = RewardProvider(vsync: this);
+    _reward.loadRewardBox(); // ← ADD THIS
+
     _screenShare = ScreenShareProvider(
       token: widget.screenShareToken ?? '',
       channelName: widget.channelName!,
@@ -88,62 +90,69 @@ class _SessionScreenState extends State<SessionScreen>
   }
 
   void setupSocket() {
-  final socket = SocketService();
+    final socket = SocketService();
 
-  socket.onVideoSelect = (d) {
-    _video.playFromUrl(
-      d['videoUrl'],
-      type: d['videoUrl'].toString().contains('youtube')
-          ? VideoType.external
-          : VideoType.mp4,
-    );
-  };
+    socket.onVideoSelect = (d) {
+      _video.playFromUrl(
+        d['videoUrl'],
+        type: d['videoUrl'].toString().contains('youtube')
+            ? VideoType.external
+            : VideoType.mp4,
+      );
+    };
 
-  socket.onVideoPlay = (d) {
-    final t = (d['currentTime'] as num).toDouble();
-    _video.seek(Duration(milliseconds: (t * 1000).toInt()));
-    _video.resume();
-  };
+    socket.onVideoPlay = (d) {
+      final t = (d['currentTime'] as num).toDouble();
+      _video.seek(Duration(milliseconds: (t * 1000).toInt()));
+      _video.resume();
+    };
 
-  socket.onVideoPause = (d) {
-    final t = (d['currentTime'] as num).toDouble();
-    _video.seek(Duration(milliseconds: (t * 1000).toInt()));
-    _video.pause();
-  };
+    socket.onVideoPause = (d) {
+      final t = (d['currentTime'] as num).toDouble();
+      _video.seek(Duration(milliseconds: (t * 1000).toInt()));
+      _video.pause();
+    };
 
-  socket.onVideoSeek = (d) {
-    final t = (d['currentTime'] as num).toDouble();
-    _video.seek(Duration(milliseconds: (t * 1000).toInt()));
-  };
+    socket.onVideoSeek = (d) {
+      final t = (d['currentTime'] as num).toDouble();
+      _video.seek(Duration(milliseconds: (t * 1000).toInt()));
+    };
 
-  socket.onVideoVolume = (d) {
-    final v = (d['volume'] as num).toDouble();
-    _video.setVolume(v);
-  };
+    socket.onVideoVolume = (d) {
+      final v = (d['volume'] as num).toDouble();
+      _video.setVolume(v);
+    };
 
-  socket.onButtonAction = (d) {
-    _handleButtonAction(d['action']);
-  };
+    socket.onButtonAction = (d) {
+      _handleButtonAction(d['action']);
+    };
 
-  socket.onPeerConnected = (d) => setState(() {});
-  socket.onPeerDisconnected = (d) => setState(() {});
+    socket.onPeerConnected = (d) => setState(() {});
+    socket.onPeerDisconnected = (d) => setState(() {});
 
-  // Client: sync on join
-  if (widget.role == UserRole.client) {
-    socket.syncRequest();
+    // Client: sync on join
+    if (widget.role == UserRole.client) {
+      socket.syncRequest();
+    }
   }
-}
 
-void _handleButtonAction(String action) {
-  // Map server actions to your existing UI
-  switch (action) {
-    case 'DIVE_IN':     /* show dive in UI */ break;
-    case 'ASKING':      /* show asking UI  */ break;
-    case 'LET_ME_SHARE': _screenShare.openBrowserAndShare(); break;
-    case 'REWARD_BOX':  _reward.toggleDrawer(); break;
-    case 'TAKE_ME_BACK': /* navigate back  */ break;
+  void _handleButtonAction(String action) {
+    // Map server actions to your existing UI
+    switch (action) {
+      case 'DIVE_IN': /* show dive in UI */
+        break;
+      case 'ASKING': /* show asking UI  */
+        break;
+      case 'LET_ME_SHARE':
+        _screenShare.openBrowserAndShare();
+        break;
+      case 'REWARD_BOX':
+        _reward.toggleDrawer();
+        break;
+      case 'TAKE_ME_BACK': /* navigate back  */
+        break;
+    }
   }
-}
 
   void _onScreenShareChange() {
     if (!mounted) return;
@@ -157,7 +166,9 @@ void _handleButtonAction(String action) {
     } else {
       if (_screenShare.isSharing) {
         _wasSharing = true;
-        setState(() => _remoteCamRebuildKey++); // ← NEW: bump on share start too
+        setState(
+          () => _remoteCamRebuildKey++,
+        ); // ← NEW: bump on share start too
       } else {
         setState(() {});
       }
@@ -231,7 +242,7 @@ void _handleButtonAction(String action) {
   }
 
   Future<void> _endSession() async {
-      SocketService().disconnect();
+    SocketService().disconnect();
 
     try {
       _stopGeneration++;
@@ -437,6 +448,7 @@ void _handleButtonAction(String action) {
 
   Widget _videoPanel() {
     return VideoPanel(
+      rewardProvider: _reward,
       videoProvider: _video,
       screenShareProvider: _screenShare,
       sessionProvider: _session,
@@ -448,7 +460,9 @@ void _handleButtonAction(String action) {
 
   Widget _remoteCameraTile({bool large = false}) {
     return KeyedSubtree(
-      key: ValueKey('remote_cam_${_session.remoteUid}_$_remoteCamRebuildKey'), // ← UPDATED
+      key: ValueKey(
+        'remote_cam_${_session.remoteUid}_$_remoteCamRebuildKey',
+      ), // ← UPDATED
       child: CameraTile(session: _session, isRemote: true, large: large),
     );
   }
@@ -526,15 +540,21 @@ void _handleButtonAction(String action) {
       );
     }
 
-    // CLIENT LAYOUT
+    // ── CLIENT LAYOUT ──────────────────────────────
     final bool shareActive = _session.isRemoteScreenSharing;
 
     final Widget sideTopContent = shareActive
         ? _screenShareTile()
+        : _video.isVideoMode
+        ? _videoPanel()
         : Container(color: Colors.black87);
 
     final Widget mainContent = _session.isSwapped
-        ? (shareActive ? _screenShareTile() : Container(color: Colors.black87))
+        ? (shareActive
+              ? _screenShareTile()
+              : _video.isVideoMode
+              ? _videoPanel()
+              : Container(color: Colors.black87))
         : _remoteCameraTile();
 
     final Widget sideTop = _session.isSwapped
