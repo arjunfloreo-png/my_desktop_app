@@ -56,33 +56,31 @@ class _BouncingCharacterState extends State<BouncingCharacter>
         Container(
           width: kCharacterWidth,
           height: kCharacterWidth,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: character.bgColor.withOpacity(0.3),
-            border: Border.all(color: character.bgColor, width: 3),
-            boxShadow: [
-              BoxShadow(
-                color: character.bgColor.withOpacity(0.5),
-                blurRadius: 20,
-                spreadRadius: 2,
-              ),
-            ],
-          ),
-          child: ClipOval(
-            child: Image.network(
-              character.imageUrl,
-              fit: BoxFit.cover,
-              loadingBuilder: (_, child, progress) => progress == null
-                  ? child
-                  : Center(
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: character.bgColor,
-                      ),
+          // decoration: BoxDecoration(
+          //   shape: BoxShape.circle,
+          //   color: character.bgColor.withOpacity(0.3),
+          //   border: Border.all(color: character.bgColor, width: 3),
+          //   boxShadow: [
+          //     BoxShadow(
+          //       color: character.bgColor.withOpacity(0.5),
+          //       blurRadius: 20,
+          //       spreadRadius: 2,
+          //     ),
+          //   ],
+          // ),
+          child: Image.network(
+            character.imageUrl,
+            fit: BoxFit.cover,
+            loadingBuilder: (_, child, progress) => progress == null
+                ? child
+                : Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: character.bgColor,
                     ),
-              errorBuilder: (_, __, ___) =>
-                  Icon(Icons.person, size: 60, color: character.bgColor),
-            ),
+                  ),
+            errorBuilder: (_, __, ___) =>
+                Icon(Icons.person, size: 60, color: character.bgColor),
           ),
         ),
         // const SizedBox(height: 10),

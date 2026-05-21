@@ -25,7 +25,8 @@ class FlyingBadgeOverlay extends StatelessWidget {
                   child: Transform.scale(
                     scale: fb.scale.value,
                     child: fb.badge != null
-                        ? _badgeWidget(fb.badge!)
+                        ? 
+                        _badgeWidget(fb.badge!)
                         : _reactionWidget(fb.reaction!),
                   ),
                 ),
@@ -86,26 +87,24 @@ class FlyingBadgeOverlay extends StatelessWidget {
     return Container(
       width: 170,
       height: 170,
-      decoration: BoxDecoration(
-        color: const Color(0xFF00796B),
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-              color: const Color(0xFF00796B).withOpacity(0.65),
-              blurRadius: 35,
-              spreadRadius: 8,
-              offset: const Offset(0, 4)),
-          BoxShadow(
-              color: Colors.black.withOpacity(0.22),
-              blurRadius: 16,
-              offset: const Offset(0, 8)),
-        ],
-        border: Border.all(color: Colors.white.withOpacity(0.35), width: 3.5),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Image.network(
+      // decoration: BoxDecoration(
+      //   color: const Color(0xFF00796B),
+      //   shape: BoxShape.circle,
+      //   boxShadow: [
+      //     BoxShadow(
+      //         color: const Color(0xFF00796B).withOpacity(0.65),
+      //         blurRadius: 35,
+      //         spreadRadius: 8,
+      //         offset: const Offset(0, 4)),
+      //     BoxShadow(
+      //         color: Colors.black.withOpacity(0.22),
+      //         blurRadius: 16,
+      //         offset: const Offset(0, 8)),
+      //   ],
+      //   border: Border.all(color: Colors.white.withOpacity(0.35), width: 3.5),
+      // ),
+      child: 
+       Image.network(
             RewardApi.fullUrl(reaction.gifPath),
             width: 80,
             height: 80,
@@ -116,18 +115,6 @@ class FlyingBadgeOverlay extends StatelessWidget {
               size: 60,
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            reaction.name,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                height: 1.2),
-          ),
-        ],
-      ),
     );
   }
 }
