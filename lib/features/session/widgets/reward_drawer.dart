@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import '../apis/reward_api.dart';
-import '../models/reward_box_model.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../models/mini_video_charater_reaction_model.dart';
+import '../models/mini_vod.dart';
 import '../provider/reward_provider.dart';
+import 'hover_preview_widget.dart';
 
 class RewardDrawer extends StatefulWidget {
   final RewardProvider rewardProvider;
@@ -12,46 +14,77 @@ class RewardDrawer extends StatefulWidget {
   State<RewardDrawer> createState() => _RewardDrawerState();
 }
 
-class _RewardDrawerState extends State<RewardDrawer> {
-  int _charVisible  = 6;
+class _RewardDrawerState extends State<RewardDrawer>
+    with SingleTickerProviderStateMixin {
+  int _charVisible = 6;
   int _badgeVisible = 6;
   static const int _step = 6;
-  String? _selectedCharacterName;
+  String? _selectedVodId;
+  String? _hoveredVodId;
+
+  late final ScrollController _charScrollCtrl;
+  late final ScrollController _badgeScrollCtrl;
+  late final AnimationController _tabCtrl;
+  late final Animation<Color?> _tabColorAnim;
+
+  int _activeTab = 0; // 0 = characters, 1 = reactions
+
+  @override
+  void initState() {
+    super.initState();
+    _charScrollCtrl = ScrollController();
+    _badgeScrollCtrl = ScrollController();
+
+    _tabCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
+    _tabColorAnim = ColorTween(begin: const Color(0xFF2E7D32), end: const Color(0xFF00796B))
+        .animate(_tabCtrl);
+
+    _charScrollCtrl.addListener(_onCharacterScroll);
+    _badgeScrollCtrl.addListener(_onReactionScroll);
+  }
+
+  void _onCharacterScroll() {
+    if (_charScrollCtrl.position.pixels >
+        _charScrollCtrl.position.maxScrollExtent * 0.7) {
+      widget.rewardProvider.prefetchMore(_charVisible, _step);
+    }
+  }
+
+  void _onReactionScroll() {
+    if (_badgeScrollCtrl.position.pixels >
+        _badgeScrollCtrl.position.maxScrollExtent * 0.7) {
+      widget.rewardProvider.prefetchMore(
+        widget.rewardProvider.characterVods.length + _badgeVisible,
+        _step,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _charScrollCtrl.dispose();
+    _badgeScrollCtrl.dispose();
+    _tabCtrl.dispose();
+    super.dispose();
+  }
+
+  void _switchTab(int tab) {
+    setState(() => _activeTab = tab);
+    if (tab == 0) {
+      _tabCtrl.reverse();
+    } else {
+      _tabCtrl.forward();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    print('loading=${widget.rewardProvider.isLoading} '
-      'error=${widget.rewardProvider.fetchError} '
-      'chars=${widget.rewardProvider.apiCharacters.length} '
-      'reactions=${widget.rewardProvider.reactions.length}');
-    // Loading / error states
     if (widget.rewardProvider.isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Color(0xFF00bd74)),
-      );
+      return _loadingState();
     }
+
     if (widget.rewardProvider.fetchError != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, color: Colors.red, size: 36),
-            const SizedBox(height: 8),
-            Text(
-              widget.rewardProvider.fetchError!,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.red, fontSize: 12),
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: widget.rewardProvider.loadRewardBox,
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00bd74)),
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
-      );
+      return _errorState();
     }
 
     return Material(
@@ -73,17 +106,12 @@ class _RewardDrawerState extends State<RewardDrawer> {
         child: Column(
           children: [
             _header(),
-            _columnHeadings(),
+            _tabBar(),
             const Divider(height: 1, thickness: 1, color: Color(0xFFE0E0E0)),
             Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: _characterColumn()),
-                  Container(width: 1, color: const Color(0xFFE0E0E0)),
-                  Expanded(child: _badgeColumn()),
-                ],
-              ),
+              child: _activeTab == 0
+                  ? _characterVodGrid()
+                  : _reactionVodGrid(),
             ),
           ],
         ),
@@ -91,7 +119,7 @@ class _RewardDrawerState extends State<RewardDrawer> {
     );
   }
 
-  // ── Top header ────────────────────────────────────────────────────────────
+  // ── Header ────────────────────────────────────────────────────────────
 
   Widget _header() {
     return Container(
@@ -106,7 +134,7 @@ class _RewardDrawerState extends State<RewardDrawer> {
       child: Row(
         children: [
           const Text(
-            '🏅  REWARD BOX',
+            '🎬 MINI VOD KIT',
             style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w700,
@@ -124,188 +152,78 @@ class _RewardDrawerState extends State<RewardDrawer> {
     );
   }
 
-  // ── Column headings ───────────────────────────────────────────────────────
+  // ── Tab Bar ───────────────────────────────────────────────────────────
 
-  Widget _columnHeadings() {
-    return IntrinsicHeight(
-      child: Row(
-        children: [
-          Expanded(
-            child: _sectionHeading(
-              emoji: '🧑',
-              label: 'Characters',
-              bgColor: const Color(0xFFE8F5E9),
-              textColor: const Color(0xFF2E7D32),
-            ),
-          ),
-          Container(width: 1, color: const Color(0xFFE0E0E0)),
-          Expanded(
-            child: _sectionHeading(
-              emoji: '🎖️',
-              label: 'Reward Badges',
-              bgColor: const Color(0xFFE0F2F1),
-              textColor: const Color(0xFF00796B),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _sectionHeading({
-    required String emoji,
-    required String label,
-    required Color bgColor,
-    required Color textColor,
-  }) {
+  Widget _tabBar() {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-      color: bgColor,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      color: const Color(0xFFF5F5F5),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 11)),
-          const SizedBox(width: 3),
-          Flexible(
-            child: Text(
-              label,
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                color: textColor,
-                letterSpacing: 0.2,
-              ),
-            ),
+          _tabButton(
+            label: '🧑 Characters',
+            isActive: _activeTab == 0,
+            onTap: () => _switchTab(0),
+          ),
+          const SizedBox(width: 6),
+          _tabButton(
+            label: '⚡ Reactions',
+            isActive: _activeTab == 1,
+            onTap: () => _switchTab(1),
           ),
         ],
       ),
     );
   }
 
-  // ── LEFT: character column ────────────────────────────────────────────────
+  Widget _tabButton({
+    required String label,
+    required bool isActive,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: isActive ? const Color(0xFF00bd74) : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: isActive ? Colors.white : Colors.black54,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
-  Widget _characterColumn() {
-    final all     = widget.rewardProvider.apiCharacters;
-    final shown   = all.take(_charVisible).toList();
+  // ── Character VOD Grid ────────────────────────────────────────────────
+
+  Widget _characterVodGrid() {
+    final all = widget.rewardProvider.characterVods;
+    if (all.isEmpty) {
+      return Center(
+        child: Text(
+          'No character VODs loaded',
+          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+        ),
+      );
+    }
+
+    final shown = all.take(_charVisible).toList();
     final hasMore = _charVisible < all.length;
     final canLess = _charVisible > _step;
 
     return ListView(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-      children: [
-        ...shown.map(_characterTile),
-        if (hasMore || canLess)
-          _loadControl(
-            hasMore: hasMore,
-            canLess: canLess,
-            onMore: () => setState(() => _charVisible += _step),
-            onLess: () => setState(() =>
-                _charVisible = (_charVisible - _step).clamp(_step, all.length)),
-          ),
-      ],
-    );
-  }
-
-  Widget _characterTile(CharacterItem c) {
-    final isSelected = _selectedCharacterName == c.name;
-    const accent = Color(0xFF00bd74);
-
-    return GestureDetector(
-      onTap: () {
-        setState(() => _selectedCharacterName = c.name);
-        widget.rewardProvider.selectCharacterFromApi(c);
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? accent.withOpacity(0.4)
-              : accent.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? accent : accent.withOpacity(0.3),
-            width: isSelected ? 2 : 1,
-          ),
-          boxShadow: isSelected
-              ? [BoxShadow(color: accent.withOpacity(0.4), blurRadius: 8)]
-              : null,
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: accent.withOpacity(0.3),
-                border: isSelected
-                    ? Border.all(color: accent, width: 2)
-                    : null,
-              ),
-              child: ClipOval(
-                child: Image.network(
-                  RewardApi.fullUrl(c.imagePath),
-                  fit: BoxFit.cover,
-                  headers: const {'ngrok-skip-browser-warning': 'true'},
-                  loadingBuilder: (_, child, progress) => progress == null
-                      ? child
-                      : Center(
-                          child: SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: accent),
-                          ),
-                        ),
-                  errorBuilder: (_, __, ___) =>
-                      const Icon(Icons.person, size: 28, color: accent),
-                ),
-              ),
-            ),
-            const SizedBox(height: 5),
-            Text(
-              c.name,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.w700,
-                color: isSelected ? Colors.black : Colors.black87,
-              ),
-            ),
-            if (isSelected) ...[
-              const SizedBox(height: 4),
-              Container(
-                width: 20,
-                height: 3,
-                decoration: BoxDecoration(
-                  color: accent,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ── RIGHT: reaction/badge column ──────────────────────────────────────────
-
-  Widget _badgeColumn() {
-    final all     = widget.rewardProvider.reactions;
-    final shown   = all.take(_badgeVisible).toList();
-    final hasMore = _badgeVisible < all.length;
-    final canLess = _badgeVisible > _step;
-
-    return ListView(
+      controller: _charScrollCtrl,
       padding: const EdgeInsets.all(10),
       children: [
         GridView.count(
@@ -314,7 +232,53 @@ class _RewardDrawerState extends State<RewardDrawer> {
           mainAxisSpacing: 8,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          children: shown.map(_reactionTile).toList(),
+          children: shown.map(_vodTile).toList(),
+        ),
+        if (hasMore || canLess)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: _loadControl(
+              hasMore: hasMore,
+              canLess: canLess,
+              onMore: () => setState(() => _charVisible += _step),
+              onLess: () => setState(
+                () => _charVisible =
+                    (_charVisible - _step).clamp(_step, all.length),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  // ── Reaction VOD Grid ─────────────────────────────────────────────────
+
+  Widget _reactionVodGrid() {
+    final all = widget.rewardProvider.reactionVods;
+    if (all.isEmpty) {
+      return Center(
+        child: Text(
+          'No reaction VODs loaded',
+          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+        ),
+      );
+    }
+
+    final shown = all.take(_badgeVisible).toList();
+    final hasMore = _badgeVisible < all.length;
+    final canLess = _badgeVisible > _step;
+
+    return ListView(
+      controller: _badgeScrollCtrl,
+      padding: const EdgeInsets.all(10),
+      children: [
+        GridView.count(
+          crossAxisCount: 2,
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          children: shown.map(_vodTile).toList(),
         ),
         if (hasMore || canLess)
           Padding(
@@ -323,61 +287,193 @@ class _RewardDrawerState extends State<RewardDrawer> {
               hasMore: hasMore,
               canLess: canLess,
               onMore: () => setState(() => _badgeVisible += _step),
-              onLess: () => setState(() => _badgeVisible =
-                  (_badgeVisible - _step).clamp(_step, all.length)),
+              onLess: () => setState(
+                () => _badgeVisible =
+                    (_badgeVisible - _step).clamp(_step, all.length),
+              ),
             ),
           ),
       ],
     );
   }
 
-  Widget _reactionTile(ReactionItem r) {
-    return GestureDetector(
-      onTap: () => widget.rewardProvider.launchReaction(r),
-      child: Container(
+  // ── VOD Tile (replaces both image and gif tiles) ────────────────────
+
+
+ Widget _vodTile(MiniVod vod) {
+  final isSelected = _selectedVodId == vod.id;
+  final isHovered = _hoveredVodId == vod.id;
+
+  const accent = Color(0xFF00bd74);
+
+  return MouseRegion(
+    onEnter: (_) {
+      setState(() => _hoveredVodId = vod.id);
+    },
+    onExit: (_) {
+      setState(() => _hoveredVodId = null);
+    },
+    child: GestureDetector(
+      onTap: () {
+        setState(() => _selectedVodId = vod.id);
+        widget.rewardProvider.selectVod(vod);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
-          color: const Color(0xFF00796B),
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.25),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            )
-          ],
+          color: Colors.black87,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? accent : accent.withOpacity(0.3),
+            width: isSelected ? 2 : 1,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: accent.withOpacity(0.4),
+                    blurRadius: 10,
+                  )
+                ]
+              : null,
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Image.network(
-              RewardApi.fullUrl(r.gifPath),
-              width: 38,
-              height: 38,
-              headers: const {'ngrok-skip-browser-warning': 'true'},
-              errorBuilder: (_, __, ___) => const Icon(
-                Icons.emoji_emotions,
-                color: Colors.white,
-                size: 28,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              /// AUTO PLAY VIDEO ON HOVER
+              if (isHovered)
+                HoverVideoPreview(videoUrl: vod.videoUrl)
+              else
+                _cachedThumbnail(vod.thumbnailUrl),
+
+              /// Duration badge
+              Positioned(
+                bottom: 6,
+                right: 6,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    _formatDuration(vod.duration),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              r.name,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 8,
-                fontWeight: FontWeight.w700,
-                height: 1.1,
+
+              /// Play overlay
+              if (!isHovered && !isSelected)
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: accent.withOpacity(0.8),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.play_arrow_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ),
+
+              /// Selected overlay
+              if (isSelected)
+                Container(
+                  color: accent.withOpacity(0.2),
+                  child: const Center(
+                    child: Icon(
+                      Icons.check_circle_rounded,
+                      color: accent,
+                      size: 36,
+                    ),
+                  ),
+                ),
+
+              /// Name label
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withOpacity(0.85),
+                      ],
+                    ),
+                  ),
+                  child: Text(
+                    vod.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
+      ),
+    ),
+  );
+}
+
+  Widget _cachedThumbnail(String url) {
+    return CachedNetworkImage(
+      imageUrl: url,
+      fit: BoxFit.cover,
+      httpHeaders: const {'ngrok-skip-browser-warning': 'true'},
+      placeholder: (context, url) => Container(
+        color: Colors.grey[800],
+        child: const Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Color(0xFF00bd74),
+            ),
+          ),
+        ),
+      ),
+      errorWidget: (context, url, error) => Container(
+        color: Colors.grey[800],
+        child: const Icon(Icons.play_circle_outline, color: Color(0xFF00bd74)),
       ),
     );
   }
 
-  // ── Load control ──────────────────────────────────────────────────────────
+  String _formatDuration(Duration d) {
+    final m = (d.inSeconds ~/ 60).toString().padLeft(2, '0');
+    final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  // ── Load control ──────────────────────────────────────────────────────
 
   Widget _loadControl({
     required bool hasMore,
@@ -390,7 +486,8 @@ class _RewardDrawerState extends State<RewardDrawer> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          if (hasMore) _pill(icon: Icons.expand_more, label: 'More', onTap: onMore),
+          if (hasMore)
+            _pill(icon: Icons.expand_more, label: 'More', onTap: onMore),
           if (hasMore && canLess) const SizedBox(width: 6),
           if (canLess) _pill(icon: Icons.expand_less, label: 'Less', onTap: onLess),
         ],
@@ -408,16 +505,53 @@ class _RewardDrawerState extends State<RewardDrawer> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-            color: Colors.black87, borderRadius: BorderRadius.circular(20)),
+          color: Colors.black87,
+          borderRadius: BorderRadius.circular(20),
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, color: Colors.white, size: 14),
             const SizedBox(width: 4),
-            Text(label,
-                style: const TextStyle(color: Colors.white, fontSize: 10)),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.white, fontSize: 10),
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _loadingState() {
+    return Center(
+      child: CircularProgressIndicator(
+        color: const Color(0xFF00bd74),
+      ),
+    );
+  }
+
+  Widget _errorState() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.error_outline, color: Colors.red, size: 36),
+          const SizedBox(height: 8),
+          Text(
+            widget.rewardProvider.fetchError!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.red, fontSize: 12),
+          ),
+          const SizedBox(height: 12),
+          ElevatedButton(
+            onPressed: widget.rewardProvider.loadRewardBox,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF00bd74),
+            ),
+            child: const Text('Retry'),
+          ),
+        ],
       ),
     );
   }

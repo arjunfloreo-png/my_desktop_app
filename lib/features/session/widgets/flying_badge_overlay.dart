@@ -105,7 +105,8 @@ class FlyingBadgeOverlay extends StatelessWidget {
       // ),
       child: 
        Image.network(
-            RewardApi.fullUrl(reaction.gifPath),
+        '',
+          //  RewardApi.fullUrl(reaction.gifPath),
             width: 80,
             height: 80,
             headers: const {'ngrok-skip-browser-warning': 'true'},

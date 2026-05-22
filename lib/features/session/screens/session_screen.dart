@@ -353,7 +353,8 @@ class _SessionScreenState extends State<SessionScreen>
                   onClose: () => _screenFocusNode.requestFocus(),
                 ),
 
-              FlyingBadgeOverlay(flyingBadges: _reward.flyingBadges),
+          // ------------ flay reaction on screen -------------------
+          //    FlyingBadgeOverlay(flyingBadges: _reward.flyingBadges),
 
               if (_timerVisible)
                 Positioned(
