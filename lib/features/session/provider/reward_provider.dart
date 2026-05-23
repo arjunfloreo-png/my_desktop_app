@@ -1,5 +1,6 @@
 // lib/provider/reward_provider.dart
 
+import 'package:floreo/cores/media_duration.dart';
 import 'package:flutter/material.dart';
 import '../../../services/thumbnail_cache_service.dart';
 import '../../../services/vimeo_service.dart';
@@ -80,42 +81,55 @@ class RewardProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
-
-  Future<List<MiniVod>> _fetchCharacterVods() async {
-    final chars = await RewardApi.fetchCharacterVods();
-    final vods = chars
-        .map((char) => MiniVod.fromCharacter(char, type: 'character'))
-        .toList();
-    await Future.wait(
-      vods.map((vod) async {
-        try {
-          final thumbUrl = await VimeoService.getThumbnailUrl(vod.id);
-          if (thumbUrl.isNotEmpty) vod.thumbnailUrl = thumbUrl;
-        } catch (e) {
-          print('Failed to get thumbnail for ${vod.name}: $e');
+ Future<List<MiniVod>> _fetchCharacterVods() async {
+  final chars = await RewardApi.fetchCharacterVods();
+  final vods = chars
+      .map((char) => MiniVod.fromCharacter(char, type: 'character'))
+      .toList();
+  await Future.wait(
+    vods.map((vod) async {
+      try {
+        final info = await VimeoService.getVideoInfo(vod.id);
+        if (info.thumb.isNotEmpty) vod.thumbnailUrl = info.thumb;
+        if (info.duration != null && info.duration!.inSeconds > 0) {
+          vod.duration = info.duration!;
+        } else {
+          // fallback: get from video file directly
+          final dur = await getMediaDuration(vod.videoUrl);
+          if (dur != null) vod.duration = dur;
         }
-      }),
-    );
-    return vods;
-  }
+      } catch (e) {
+        print('Failed for ${vod.name}: $e');
+      }
+    }),
+  );
+  return vods;
+}
 
-  Future<List<MiniVod>> _fetchReactionVods() async {
-    final reacts = await RewardApi.fetchReactionVods();
-    final vods = reacts
-        .map((react) => MiniVod.fromCharacter(react, type: 'reaction'))
-        .toList();
-    await Future.wait(
-      vods.map((vod) async {
-        try {
-          final thumbUrl = await VimeoService.getThumbnailUrl(vod.id);
-          if (thumbUrl.isNotEmpty) vod.thumbnailUrl = thumbUrl;
-        } catch (e) {
-          print('Failed to get thumbnail for ${vod.name}: $e');
+// same for _fetchReactionVods
+Future<List<MiniVod>> _fetchReactionVods() async {
+  final reacts = await RewardApi.fetchReactionVods();
+  final vods = reacts
+      .map((react) => MiniVod.fromCharacter(react, type: 'reaction'))
+      .toList();
+  await Future.wait(
+    vods.map((vod) async {
+      try {
+        final info = await VimeoService.getVideoInfo(vod.id);
+        if (info.thumb.isNotEmpty) vod.thumbnailUrl = info.thumb;
+        if (info.duration != null && info.duration!.inSeconds > 0) {
+          vod.duration = info.duration!;
+        } else {
+          final dur = await getMediaDuration(vod.videoUrl); // ← fallback
+          if (dur != null) vod.duration = dur;
         }
-      }),
-    );
-    return vods;
-  }
+      } catch (e) {
+        print('Failed for ${vod.name}: $e');
+      }
+    }),
+  );
+  return vods;
+}
   void clearReactionVod() {
   _selectedReactionVod = null;
   notifyListeners();

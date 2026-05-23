@@ -1,10 +1,11 @@
 import 'mini_video_charater_reaction_model.dart';
+
 class MiniVod {
   final String id;
   final String name;
   final String videoUrl;
   String thumbnailUrl;
-  final Duration duration;
+  Duration duration; // ← remove final
   final String? category;
   final String vimeoUrl;
   final String uploadStatus;
@@ -24,9 +25,9 @@ class MiniVod {
     return MiniVod(
       id: char.vimeoId,
       name: char.name1,
-      videoUrl: char.videoUrl.isNotEmpty ? char.videoUrl.first : '', // ← fix
-      thumbnailUrl: char.vimeoThumbnailUrl,                          // ← use real thumb
-      duration: const Duration(minutes: 5),
+      videoUrl: char.videoUrl.isNotEmpty ? char.videoUrl.first : '',
+      thumbnailUrl: char.vimeoThumbnailUrl,
+      duration: const Duration(seconds: 0), // ← temp, real fetched below
       category: type == 'character' ? 'Character' : 'Reaction',
       vimeoUrl: char.vimeoUrl,
       uploadStatus: char.uploadStatus,
