@@ -9,6 +9,7 @@ import '../provider/screen_share_provider.dart';
 import '../provider/session_provider.dart';
 import '../provider/video_provider.dart';
 import 'bouncing_character.dart';
+import 'mini_vod_player.dart';
 
 class VideoPanel extends StatefulWidget {
   final VideoProvider videoProvider;
@@ -250,42 +251,39 @@ class _VideoPanelState extends State<VideoPanel> {
     );
   }
 
-  Widget _buildCharacterOverlay() {
-    final character = widget.rewardProvider.selectedCharacter;
+   Widget _buildCharacterOverlay() {
+  final vod = widget.rewardProvider.selectedVod; // ← need this in provider
 
-    return IgnorePointer(
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          // dim overlay
-          Container(color: Colors.black.withOpacity(0.42)),
-          // character bottom-left
-          Positioned(
-            bottom: 16,
-            left: 16,
-            child: TweenAnimationBuilder<double>(
-              key: ValueKey(_lastPrompt),
-              tween: Tween(begin: 0.0, end: 1.0),
-              duration: const Duration(milliseconds: 450),
-              curve: Curves.easeOutBack,
-              builder: (context, value, child) => Opacity(
-                opacity: value.clamp(0.0, 1.0),
-                child: Transform.scale(
-                  alignment: Alignment.bottomLeft,
-                  scale: value,
-                  child: child,
-                ),
-              ),
-              child: BouncingCharacter(
-                character: character,
-                faceOnly: true,
+  return IgnorePointer(
+    child: Stack(
+      fit: StackFit.expand,
+      children: [
+        Container(color: Colors.black.withOpacity(0.42)),
+        Positioned(
+          bottom: 16,
+          left: 16,
+          child: TweenAnimationBuilder<double>(
+            key: ValueKey(vod?.id),
+            tween: Tween(begin: 0.0, end: 1.0),
+            duration: const Duration(milliseconds: 450),
+            curve: Curves.easeOutBack,
+            builder: (context, value, child) => Opacity(
+              opacity: value.clamp(0.0, 1.0),
+              child: Transform.scale(
+                alignment: Alignment.bottomLeft,
+                scale: value,
+                child: child,
               ),
             ),
+            child: vod != null
+                ? MiniVodPlayer(videoUrl: vod.videoUrl)
+                : const SizedBox.shrink(),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _placeholder(BuildContext context) {
     return Container(

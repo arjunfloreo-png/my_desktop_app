@@ -1,8 +1,9 @@
-// lib/services/reward_api.dart
-
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
-import '../models/mini_video_charater_reaction_model.dart';
+
+import '../models/mini_video_charater_reaction_model.dart'; // keep file name
+// but class is now RewardBoxModel
 
 class RewardApi {
   static const _base = 'https://only-clapped-bride.ngrok-free.dev';
@@ -11,20 +12,16 @@ class RewardApi {
     'Content-Type': 'application/json',
   };
 
-  static Future<MiniVideoCharaterReactionModel> fetchRewardBox() async {
+  static Future<RewardBoxModel> fetchRewardBox() async {   // ← renamed
     final res = await http.get(
-      Uri.parse(
-        '$_base/api/method/floreo.api.therapist_api.v1.get_full_reactions',
-      ),
+      Uri.parse('$_base/api/method/floreo.api.therapist_api.v1.get_full_reactions'),
       headers: _headers,
     );
-    
-    if (res.statusCode != 200) {
-      throw Exception('API error: ${res.statusCode}');
-    }
+
+    if (res.statusCode != 200) throw Exception('API error: ${res.statusCode}');
 
     final json = jsonDecode(res.body) as Map<String, dynamic>;
-    return MiniVideoCharaterReactionModel.fromJson(json);
+    return RewardBoxModel.fromJson(json);                  // ← renamed
   }
 
   static Future<List<Character>> fetchCharacterVods() async {
