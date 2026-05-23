@@ -81,62 +81,49 @@ class RewardProvider extends ChangeNotifier {
     }
   }
 
-  
   Future<List<MiniVod>> _fetchCharacterVods() async {
     final chars = await RewardApi.fetchCharacterVods();
-    
     final vods = chars
         .map((char) => MiniVod.fromCharacter(char, type: 'character'))
         .toList();
-    
-    // Fetch real Vimeo thumbnails in parallel
     await Future.wait(
       vods.map((vod) async {
         try {
           final thumbUrl = await VimeoService.getThumbnailUrl(vod.id);
-          if (thumbUrl.isNotEmpty) {
-            vod.thumbnailUrl = thumbUrl;
-          }
+          if (thumbUrl.isNotEmpty) vod.thumbnailUrl = thumbUrl;
         } catch (e) {
           print('Failed to get thumbnail for ${vod.name}: $e');
         }
       }),
     );
-    
     return vods;
   }
 
   Future<List<MiniVod>> _fetchReactionVods() async {
     final reacts = await RewardApi.fetchReactionVods();
-    
     final vods = reacts
         .map((react) => MiniVod.fromCharacter(react, type: 'reaction'))
         .toList();
-    
-    // Fetch real Vimeo thumbnails in parallel
     await Future.wait(
       vods.map((vod) async {
         try {
           final thumbUrl = await VimeoService.getThumbnailUrl(vod.id);
-          if (thumbUrl.isNotEmpty) {
-            vod.thumbnailUrl = thumbUrl;
-          }
+          if (thumbUrl.isNotEmpty) vod.thumbnailUrl = thumbUrl;
         } catch (e) {
           print('Failed to get thumbnail for ${vod.name}: $e');
         }
       }),
     );
-    
     return vods;
   }
-
+  void clearReactionVod() {
+  _selectedReactionVod = null;
+  notifyListeners();
+}
 
   void _prefetchVisibleThumbnails({int visibleCount = 12}) {
     final allVods = [...characterVods, ...reactionVods];
-    final visible = allVods
-        .take(visibleCount)
-        .map((v) => v.thumbnailUrl)
-        .toList();
+    final visible = allVods.take(visibleCount).map((v) => v.thumbnailUrl).toList();
     _thumbCache.prefetch(visible, highPriority: true);
   }
 
@@ -150,17 +137,34 @@ class RewardProvider extends ChangeNotifier {
     _thumbCache.prefetch(batch, highPriority: false);
   }
 
-  MiniVod? selectedVod;
+  // ── VOD Selection ─────────────────────────────────────────────────────
+
+  MiniVod? _selectedCharacterVod;
+  MiniVod? _selectedReactionVod;
+
+  MiniVod? get selectedCharacterVod => _selectedCharacterVod;
+  MiniVod? get selectedReactionVod => _selectedReactionVod;
 
   void selectVod(MiniVod vod) {
-    selectedVod = vod;
+    if (vod.category == 'Character') {
+      _selectedCharacterVod = vod;
+    } else {
+      _selectedReactionVod = vod;
+      Future.delayed(vod.duration, () {
+        _selectedReactionVod = null;
+        notifyListeners();
+      });
+    }
     notifyListeners();
   }
 
   void clearSelectedVod() {
-    selectedVod = null;
+    _selectedCharacterVod = null;
+    _selectedReactionVod = null;
     notifyListeners();
   }
+
+  // ── Character ─────────────────────────────────────────────────────────
 
   dynamic selectedCharacter;
 
@@ -168,6 +172,8 @@ class RewardProvider extends ChangeNotifier {
     selectedCharacter = character;
     notifyListeners();
   }
+
+  // ── Flying Badges ─────────────────────────────────────────────────────
 
   final List<FlyingBadge> flyingBadges = [];
   int _idCounter = 0;
@@ -183,10 +189,8 @@ class RewardProvider extends ChangeNotifier {
     final id = _idCounter++;
     final ctrl = AnimationController(vsync: vsync, duration: duration);
 
-    final slideY = Tween<double>(
-      begin: 1.2,
-      end: -0.4,
-    ).animate(CurvedAnimation(parent: ctrl, curve: Curves.easeOutCubic));
+    final slideY = Tween<double>(begin: 1.2, end: -0.4)
+        .animate(CurvedAnimation(parent: ctrl, curve: Curves.easeOutCubic));
 
     final opacity = TweenSequence<double>([
       TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 8),
@@ -196,10 +200,8 @@ class RewardProvider extends ChangeNotifier {
 
     final scale = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween(
-          begin: 0.3,
-          end: 1.2,
-        ).chain(CurveTween(curve: Curves.elasticOut)),
+        tween: Tween(begin: 0.3, end: 1.2)
+            .chain(CurveTween(curve: Curves.elasticOut)),
         weight: 35,
       ),
       TweenSequenceItem(tween: Tween(begin: 1.2, end: 1.0), weight: 10),

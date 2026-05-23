@@ -10,6 +10,7 @@ import '../provider/session_provider.dart';
 import '../provider/video_provider.dart';
 import 'bouncing_character.dart';
 import 'mini_vod_player.dart';
+import 'reaction_vod_player.dart';
 
 class VideoPanel extends StatefulWidget {
   final VideoProvider videoProvider;
@@ -192,7 +193,9 @@ class _VideoPanelState extends State<VideoPanel> {
       return _placeholder(context);
     }
 
-    final showOverlay = widget.showCharacter || !videoProvider.isVideoPlaying;
+    final showOverlay = widget.showCharacter ||
+        (!videoProvider.isVideoPlaying &&
+            widget.rewardProvider.selectedCharacterVod != null);
 
     return Stack(
       fit: StackFit.expand,
@@ -200,6 +203,8 @@ class _VideoPanelState extends State<VideoPanel> {
         _buildVideoLayer(),
         if (videoProvider.isBuffering) _buildBuffering(),
         if (showOverlay) _buildCharacterOverlay(),
+        if (widget.rewardProvider.selectedReactionVod != null)
+          _buildReactionOverlay(),
       ],
     );
   }
@@ -251,36 +256,49 @@ class _VideoPanelState extends State<VideoPanel> {
     );
   }
 
-   Widget _buildCharacterOverlay() {
-  final vod = widget.rewardProvider.selectedVod; // ← need this in provider
+  Widget _buildCharacterOverlay() {
+    final vod = widget.rewardProvider.selectedCharacterVod;
+
+    return IgnorePointer(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Container(color: Colors.black.withOpacity(0.42)),
+          Positioned(
+            bottom: 16,
+            left: 16,
+            child: TweenAnimationBuilder<double>(
+              key: ValueKey(vod?.id),
+              tween: Tween(begin: 0.0, end: 1.0),
+              duration: const Duration(milliseconds: 450),
+              curve: Curves.easeOutBack,
+              builder: (context, value, child) => Opacity(
+                opacity: value.clamp(0.0, 1.0),
+                child: Transform.scale(
+                  alignment: Alignment.bottomLeft,
+                  scale: value,
+                  child: child,
+                ),
+              ),
+              child: vod != null
+                  ? MiniVodPlayer(videoUrl: vod.videoUrl)
+                  : const SizedBox.shrink(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReactionOverlay() {
+  final vod = widget.rewardProvider.selectedReactionVod;
+  if (vod == null) return const SizedBox.shrink();
 
   return IgnorePointer(
-    child: Stack(
-      fit: StackFit.expand,
-      children: [
-        Container(color: Colors.black.withOpacity(0.42)),
-        Positioned(
-          bottom: 16,
-          left: 16,
-          child: TweenAnimationBuilder<double>(
-            key: ValueKey(vod?.id),
-            tween: Tween(begin: 0.0, end: 1.0),
-            duration: const Duration(milliseconds: 450),
-            curve: Curves.easeOutBack,
-            builder: (context, value, child) => Opacity(
-              opacity: value.clamp(0.0, 1.0),
-              child: Transform.scale(
-                alignment: Alignment.bottomLeft,
-                scale: value,
-                child: child,
-              ),
-            ),
-            child: vod != null
-                ? MiniVodPlayer(videoUrl: vod.videoUrl)
-                : const SizedBox.shrink(),
-          ),
-        ),
-      ],
+    child: FullVodPlayer(
+      key: ValueKey(vod.id),
+      videoUrl: vod.videoUrl,
+      onComplete: () => widget.rewardProvider.clearReactionVod(), // ← add
     ),
   );
 }
