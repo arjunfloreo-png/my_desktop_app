@@ -362,7 +362,9 @@ class _VideoPanelState extends State<VideoPanel> {
           // ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(14),
-            child: Image.network(
+            child: Image.network( 
+              height: 100,
+              width: 100,
               vod.thumbnailUrl,
               fit: BoxFit.cover,
               loadingBuilder: (_, child, progress) => progress == null

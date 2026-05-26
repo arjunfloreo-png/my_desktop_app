@@ -235,69 +235,82 @@ class _RewardDrawerState extends State<RewardDrawer>
           shrinkWrap: true,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+            childAspectRatio: 1,
           ),
-      
-      itemBuilder: (context, index) {
-  final vod = all[index];
-  final isSelected = widget.rewardProvider.selectedCharacterVod?.id == vod.id;
-  const accent = Color(0xFF00bd74);
 
-  return GestureDetector(
-    onTap: () {
-      widget.rewardProvider.selectVod(vod);
-      widget.onCharacterSelected?.call(vod);
-    },
-    child: AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isSelected ? accent : Colors.transparent,
-          width: 2,
-        ),
-        boxShadow: isSelected
-            ? [BoxShadow(color: accent.withOpacity(0.4), blurRadius: 10)]
-            : null,
-      ),
-      child: Column(
-        children: [
-          Expanded(
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: _cachedThumbnail(vod.thumbnailUrl),
-                ),
-                if (isSelected)
-                  Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(10),
-                      color: accent.withOpacity(0.2),
-                    ),
-                    child: const Center(
-                      child: Icon(Icons.check_circle_rounded, color: accent, size: 32),
-                    ),
+          itemBuilder: (context, index) {
+            final vod = all[index];
+            final isSelected =
+                widget.rewardProvider.selectedCharacterVod?.id == vod.id;
+            const accent = Color(0xFF00bd74);
+
+            return GestureDetector(
+              onTap: () {
+                widget.rewardProvider.selectVod(vod);
+                widget.onCharacterSelected?.call(vod);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isSelected ? accent : Colors.transparent,
+                    width: 2,
                   ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            vod.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: isSelected ? accent : Colors.black87,
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-},
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: accent.withOpacity(0.4),
+                            blurRadius: 10,
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: _cachedThumbnail(vod.thumbnailUrl),
+                          ),
+                          if (isSelected)
+                            Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(10),
+                                color: accent.withOpacity(0.2),
+                              ),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.check_circle_rounded,
+                                  color: accent,
+                                  size: 32,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      vod.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: isSelected ? accent : Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
         ),
         //   GridView.count(
         //     crossAxisCount: 2,
