@@ -9,6 +9,7 @@ class MiniVod {
   final String category; // 'Character' or 'Reaction'
   final String vimeoUrl;
   final String uploadStatus;
+  final String? character; // GIF path for characters
 
   MiniVod({
     required this.id,
@@ -19,19 +20,21 @@ class MiniVod {
     required this.category,
     required this.vimeoUrl,
     required this.uploadStatus,
+    this.character,
   });
 
   // Factory for Character VODs
   factory MiniVod.fromCharacter(Character char) {
     return MiniVod(
-      id: char.name1, // Use name as ID since Character has no vimeoId
+      id: char.name1,
       name: char.name1,
-      videoUrl: char.character, // GIF path
-      thumbnailUrl: char.character, // Use GIF as thumbnail
+      videoUrl: char.character,
+      thumbnailUrl: char.character,
       duration: const Duration(seconds: 0),
       category: 'Character',
       vimeoUrl: '',
       uploadStatus: '',
+      character: char.character, // Store GIF path
     );
   }
 
@@ -42,10 +45,11 @@ class MiniVod {
       name: react.name1,
       videoUrl: react.videoUrl.isNotEmpty ? react.videoUrl.first : react.vimeoUrl ?? '',
       thumbnailUrl: react.vimeoThumbnailUrl,
-      duration: const Duration(seconds: 0), // fetched async later
+      duration: const Duration(seconds: 0),
       category: 'Reaction',
       vimeoUrl: react.vimeoUrl ?? '',
       uploadStatus: react.uploadStatus ?? '',
+      character: null,
     );
   }
 }

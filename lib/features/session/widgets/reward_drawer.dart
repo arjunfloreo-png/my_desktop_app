@@ -35,9 +35,14 @@ class _RewardDrawerState extends State<RewardDrawer>
     _charScrollCtrl = ScrollController();
     _badgeScrollCtrl = ScrollController();
 
-    _tabCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
-    _tabColorAnim = ColorTween(begin: const Color(0xFF2E7D32), end: const Color(0xFF00796B))
-        .animate(_tabCtrl);
+    _tabCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _tabColorAnim = ColorTween(
+      begin: const Color(0xFF2E7D32),
+      end: const Color(0xFF00796B),
+    ).animate(_tabCtrl);
 
     _charScrollCtrl.addListener(_onCharacterScroll);
     _badgeScrollCtrl.addListener(_onReactionScroll);
@@ -100,7 +105,7 @@ class _RewardDrawerState extends State<RewardDrawer>
               color: Colors.black.withOpacity(0.18),
               blurRadius: 24,
               offset: const Offset(-4, 0),
-            )
+            ),
           ],
         ),
         child: Column(
@@ -109,9 +114,7 @@ class _RewardDrawerState extends State<RewardDrawer>
             _tabBar(),
             const Divider(height: 1, thickness: 1, color: Color(0xFFE0E0E0)),
             Expanded(
-              child: _activeTab == 0
-                  ? _characterVodGrid()
-                  : _reactionVodGrid(),
+              child: _activeTab == 0 ? _characterVodGrid() : _reactionVodGrid(),
             ),
           ],
         ),
@@ -161,13 +164,13 @@ class _RewardDrawerState extends State<RewardDrawer>
       child: Row(
         children: [
           _tabButton(
-            label: '🧑 Characters',
+            label: '🎬 Gifs',
             isActive: _activeTab == 0,
             onTap: () => _switchTab(0),
           ),
           const SizedBox(width: 6),
           _tabButton(
-            label: '⚡ Reactions',
+            label: '⚡ Player',
             isActive: _activeTab == 1,
             onTap: () => _switchTab(1),
           ),
@@ -218,35 +221,77 @@ class _RewardDrawerState extends State<RewardDrawer>
       );
     }
 
-    final shown = all.take(_charVisible).toList();
-    final hasMore = _charVisible < all.length;
-    final canLess = _charVisible > _step;
-
     return ListView(
       controller: _charScrollCtrl,
       padding: const EdgeInsets.all(10),
       children: [
-        GridView.count(
-          crossAxisCount: 2,
-          crossAxisSpacing: 8,
-          mainAxisSpacing: 8,
+        GridView.builder(
+          itemCount: all.length,
           shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          children: shown.map(_vodTile).toList(),
-        ),
-        if (hasMore || canLess)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: _loadControl(
-              hasMore: hasMore,
-              canLess: canLess,
-              onMore: () => setState(() => _charVisible += _step),
-              onLess: () => setState(
-                () => _charVisible =
-                    (_charVisible - _step).clamp(_step, all.length),
-              ),
-            ),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
           ),
+         itemBuilder: (context, index) {
+  final vod = all[index];
+  print('Building tile for ${vod.thumbnailUrl}');
+  return Column(
+    children: [
+      Expanded(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: vod.character != null
+              ? CachedNetworkImage(
+                  imageUrl: vod.thumbnailUrl,
+                  fit: BoxFit.cover,
+                  httpHeaders: const {'ngrok-skip-browser-warning': 'true'},
+                  placeholder: (context, url) => Container(
+                    color: Colors.grey[800],
+                    child: const Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Color(0xFF00bd74),
+                        ),
+                      ),
+                    ),
+                  ),
+                  errorWidget: (context, url, error) => Container(
+                    color: Colors.grey[800],
+                    child:
+                        const Icon(Icons.person, color: Color(0xFF00bd74)),
+                  ),
+                )
+              : Container(color: Colors.grey[800]),
+        ),
+      ),
+      const SizedBox(height: 4),
+      Text(
+        vod.name,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700),
+      ),
+    ],
+  );
+},
+        ),
+        //   GridView.count(
+        //     crossAxisCount: 2,
+        //     crossAxisSpacing: 8,
+        //     mainAxisSpacing: 8,
+        //     shrinkWrap: true,
+        //     physics: const NeverScrollableScrollPhysics(),
+        //     children: [
+        //       Text(
+        //         'Character VODs are short clips (usually 5-15 seconds) that show a character performing a specific reaction or action. Click on any tile to play the VOD in the player tab.',
+        //         style: TextStyle(color: Colors.grey[700], fontSize: 11),
+
+        //       ),
+        //     ]
+        //  //   all.map(_vodTile).toList(),
+        //   ),
       ],
     );
   }
@@ -255,6 +300,8 @@ class _RewardDrawerState extends State<RewardDrawer>
 
   Widget _reactionVodGrid() {
     final all = widget.rewardProvider.reactionVods;
+    final selectedVod = widget.rewardProvider.selectedReactionVod;
+
     if (all.isEmpty) {
       return Center(
         child: Text(
@@ -288,159 +335,190 @@ class _RewardDrawerState extends State<RewardDrawer>
               canLess: canLess,
               onMore: () => setState(() => _badgeVisible += _step),
               onLess: () => setState(
-                () => _badgeVisible =
-                    (_badgeVisible - _step).clamp(_step, all.length),
+                () => _badgeVisible = (_badgeVisible - _step).clamp(
+                  _step,
+                  all.length,
+                ),
               ),
             ),
           ),
+        if (selectedVod != null) ...[
+          const SizedBox(height: 12),
+          const Divider(height: 1, thickness: 1, color: Color(0xFFE0E0E0)),
+          const SizedBox(height: 12),
+          _reactionPlayerArea(selectedVod),
+        ],
       ],
     );
   }
 
-  // ── VOD Tile (replaces both image and gif tiles) ────────────────────
-
-
- Widget _vodTile(MiniVod vod) {
-  final isSelected = _selectedVodId == vod.id;
-  final isHovered = _hoveredVodId == vod.id;
-
-  const accent = Color(0xFF00bd74);
-
-  return MouseRegion(
-    onEnter: (_) {
-      setState(() => _hoveredVodId = vod.id);
-    },
-    onExit: (_) {
-      setState(() => _hoveredVodId = null);
-    },
-    child: GestureDetector(
-      onTap: () {
-        setState(() => _selectedVodId = vod.id);
-        widget.rewardProvider.selectVod(vod);
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        decoration: BoxDecoration(
-          color: Colors.black87,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? accent : accent.withOpacity(0.3),
-            width: isSelected ? 2 : 1,
+  Widget _reactionPlayerArea(MiniVod vod) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'Playing: ${vod.name}',
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 12,
+            color: Colors.black87,
           ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: accent.withOpacity(0.4),
-                    blurRadius: 10,
-                  )
-                ]
-              : null,
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              /// AUTO PLAY VIDEO ON HOVER
-              if (isHovered)
-                HoverVideoPreview(videoUrl: vod.videoUrl)
-              else
-                _cachedThumbnail(vod.thumbnailUrl),
+        const SizedBox(height: 8),
+        Container(
+          height: 150,
+          decoration: BoxDecoration(
+            color: Colors.black87,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF00bd74), width: 1),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: HoverVideoPreview(videoUrl: vod.videoUrl),
+          ),
+        ),
+      ],
+    );
+  }
 
-              /// Duration badge
-              Positioned(
-                bottom: 6,
-                right: 6,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.7),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    _formatDuration(vod.duration),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
+  // ── VOD Tile ──────────────────────────────────────────────────────────
 
-              /// Play overlay
-              if (!isHovered && !isSelected)
-                Center(
+  Widget _vodTile(MiniVod vod) {
+    final isSelected = _selectedVodId == vod.id;
+    final isHovered = _hoveredVodId == vod.id;
+
+    const accent = Color(0xFF00bd74);
+
+    return MouseRegion(
+      onEnter: (_) {
+        setState(() => _hoveredVodId = vod.id);
+      },
+      onExit: (_) {
+        setState(() => _hoveredVodId = null);
+      },
+      child: GestureDetector(
+        onTap: () {
+          setState(() => _selectedVodId = vod.id);
+          widget.rewardProvider.selectVod(vod);
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          decoration: BoxDecoration(
+            color: Colors.black87,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected ? accent : accent.withOpacity(0.3),
+              width: isSelected ? 2 : 1,
+            ),
+            boxShadow: isSelected
+                ? [BoxShadow(color: accent.withOpacity(0.4), blurRadius: 10)]
+                : null,
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                /// AUTO PLAY VIDEO ON HOVER
+                if (isHovered)
+                  HoverVideoPreview(videoUrl: vod.videoUrl)
+                else
+                  _cachedThumbnail(vod.thumbnailUrl),
+
+                /// Duration badge
+                Positioned(
+                  bottom: 6,
+                  right: 6,
                   child: Container(
-                    width: 40,
-                    height: 40,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
-                      color: accent.withOpacity(0.8),
-                      shape: BoxShape.circle,
+                      color: Colors.black.withOpacity(0.7),
+                      borderRadius: BorderRadius.circular(4),
                     ),
-                    child: const Icon(
-                      Icons.play_arrow_rounded,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-                ),
-
-              /// Selected overlay
-              if (isSelected)
-                Container(
-                  color: accent.withOpacity(0.2),
-                  child: const Center(
-                    child: Icon(
-                      Icons.check_circle_rounded,
-                      color: accent,
-                      size: 36,
+                    child: Text(
+                      _formatDuration(vod.duration),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
 
-              /// Name label
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.transparent,
-                        Colors.black.withOpacity(0.85),
-                      ],
+                /// Play overlay
+                if (!isHovered && !isSelected)
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: accent.withOpacity(0.8),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.play_arrow_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ),
                   ),
-                  child: Text(
-                    vod.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
+
+                /// Selected overlay
+                if (isSelected)
+                  Container(
+                    color: accent.withOpacity(0.2),
+                    child: const Center(
+                      child: Icon(
+                        Icons.check_circle_rounded,
+                        color: accent,
+                        size: 36,
+                      ),
+                    ),
+                  ),
+
+                /// Name label
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withOpacity(0.85),
+                        ],
+                      ),
+                    ),
+                    child: Text(
+                      vod.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _cachedThumbnail(String url) {
     return CachedNetworkImage(
@@ -489,7 +567,8 @@ class _RewardDrawerState extends State<RewardDrawer>
           if (hasMore)
             _pill(icon: Icons.expand_more, label: 'More', onTap: onMore),
           if (hasMore && canLess) const SizedBox(width: 6),
-          if (canLess) _pill(icon: Icons.expand_less, label: 'Less', onTap: onLess),
+          if (canLess)
+            _pill(icon: Icons.expand_less, label: 'Less', onTap: onLess),
         ],
       ),
     );
@@ -525,9 +604,7 @@ class _RewardDrawerState extends State<RewardDrawer>
 
   Widget _loadingState() {
     return Center(
-      child: CircularProgressIndicator(
-        color: const Color(0xFF00bd74),
-      ),
+      child: CircularProgressIndicator(color: const Color(0xFF00bd74)),
     );
   }
 

@@ -87,9 +87,11 @@ class RewardProvider extends ChangeNotifier {
     final chars = await RewardApi.fetchCharacterVods();
     final vods = chars.map((char) {
       // Convert relative path to full URL
-      final gifPath = char.character.startsWith('http') 
-          ? char.character 
-          : 'https://only-clapped-bride.ngrok-free.dev${char.character}';
+     final gifPath = Uri.encodeFull(
+  char.character.startsWith('http')
+      ? char.character
+      : 'https://fabric-unloader-spray.ngrok-free.dev/${char.character}'
+);
       
       var vod = MiniVod.fromCharacter(char);
       vod.thumbnailUrl = gifPath;

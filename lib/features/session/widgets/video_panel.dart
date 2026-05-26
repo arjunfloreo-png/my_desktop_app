@@ -193,20 +193,24 @@ class _VideoPanelState extends State<VideoPanel> {
       return _placeholder(context);
     }
 
-    final showOverlay = widget.showCharacter ||
-        (!videoProvider.isVideoPlaying &&
-            widget.rewardProvider.selectedCharacterVod != null);
+    // final showOverlay = widget.showCharacter ||
+    //     (!videoProvider.isVideoPlaying &&
+    //         widget.rewardProvider.selectedCharacterVod != null);
 
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        _buildVideoLayer(),
-        if (videoProvider.isBuffering) _buildBuffering(),
-        if (showOverlay) _buildCharacterOverlay(),
-        if (widget.rewardProvider.selectedReactionVod != null)
-          _buildReactionOverlay(),
-      ],
-    );
+   return Stack(
+  fit: StackFit.expand,
+  children: [
+    _buildVideoLayer(),
+    if (videoProvider.isBuffering) _buildBuffering(),
+    // ADD THIS:
+    if (!videoProvider.isVideoPlaying && 
+        widget.rewardProvider.selectedCharacterVod != null)
+      _buildCharacterGifOverlay(),
+    
+    if (widget.rewardProvider.selectedReactionVod != null)
+      _buildReactionOverlay(),
+  ],
+);
   }
 
   Widget _buildVideoLayer() {
@@ -302,6 +306,81 @@ class _VideoPanelState extends State<VideoPanel> {
     ),
   );
 }
+// Add this method to _VideoPanelState class in video_panel.dart
+
+// Add this method to _VideoPanelState class in video_panel.dart
+
+  Widget _buildCharacterGifOverlay() {
+    final vod = widget.rewardProvider.selectedCharacterVod;
+    if (vod == null) return const SizedBox.shrink();
+
+    return IgnorePointer(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Container(color: Colors.black.withOpacity(0.3)),
+          Center(
+            child: TweenAnimationBuilder<double>(
+              key: ValueKey(vod.id),
+              tween: Tween(begin: 0.0, end: 1.0),
+              duration: const Duration(milliseconds: 450),
+              curve: Curves.easeOutBack,
+              builder: (context, value, child) => Opacity(
+                opacity: value.clamp(0.0, 1.0),
+                child: Transform.scale(
+                  scale: value,
+                  child: child,
+                ),
+              ),
+              child: Container(
+                constraints: const BoxConstraints(
+                  maxWidth: 400,
+                  maxHeight: 500,
+                ),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: const Color(0xFF00bd74),
+                    width: 2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.5),
+                      blurRadius: 20,
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: Image.network(
+                    vod.videoUrl, // GIF path from character
+                    fit: BoxFit.contain,
+                    loadingBuilder: (_, child, progress) => progress == null
+                        ? child
+                        : const Center(
+                            child: CircularProgressIndicator(
+                              color: Color(0xFF00bd74),
+                            ),
+                          ),
+                    errorBuilder: (_, __, ___) => Container(
+                      color: Colors.grey[800],
+                      child: const Icon(
+                        Icons.image_not_supported,
+                        color: Color(0xFF00bd74),
+                        size: 40,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
 
   Widget _placeholder(BuildContext context) {
     return Container(
