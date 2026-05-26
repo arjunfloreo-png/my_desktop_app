@@ -7,7 +7,7 @@ class SocketService {
 
   IO.Socket? _socket;
   static const _url = 'https://floreo-server.onrender.com';
-  // Callbacks — set these before connect()
+
   Function(Map<String, dynamic>)? onSessionJoined;
   Function(Map<String, dynamic>)? onPeerConnected;
   Function(Map<String, dynamic>)? onPeerDisconnected;
@@ -19,6 +19,8 @@ class SocketService {
   Function(Map<String, dynamic>)? onButtonAction;
   Function(Map<String, dynamic>)? onSyncResponse;
   Function(Map<String, dynamic>)? onError;
+  Function(Map<String, dynamic>)? onCharacterSelect; // ← ADD
+  Function(Map<String, dynamic>)? onReactionSelect;  // ← ADD
 
   void connect() {
     _socket = IO.io(_url,
@@ -47,6 +49,8 @@ class SocketService {
     _socket!.on('button_action',     (d) => onButtonAction?.call(_m(d)));
     _socket!.on('sync_response',     (d) => onSyncResponse?.call(_m(d)));
     _socket!.on('error',             (d) => onError?.call(_m(d)));
+    _socket!.on('character_select',  (d) => onCharacterSelect?.call(_m(d))); // ← ADD
+    _socket!.on('reaction_select',   (d) => onReactionSelect?.call(_m(d)));  // ← ADD
   }
 
   Map<String, dynamic> _m(dynamic d) => Map<String, dynamic>.from(d);
@@ -89,6 +93,12 @@ class SocketService {
       });
 
   void syncRequest() => _socket?.emit('sync_request');
+
+  void selectCharacter(String name, String url) =>  // ← ADD
+      _socket?.emit('character_select', {'name': name, 'url': url});
+
+  void selectReaction(String name, String url) =>   // ← ADD
+      _socket?.emit('reaction_select', {'name': name, 'url': url});
 
   // WebRTC
   void sendOffer(dynamic sdp)      => _socket?.emit('webrtc_offer', {'sdp': sdp});

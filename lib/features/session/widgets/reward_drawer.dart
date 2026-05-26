@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../../services/socket_service.dart';
 import '../models/mini_video_charater_reaction_model.dart';
 import '../models/mini_vod.dart';
 import '../provider/reward_provider.dart';
@@ -435,6 +436,9 @@ class _RewardDrawerState extends State<RewardDrawer>
         onTap: () {
           setState(() => _selectedVodId = vod.id);
           widget.rewardProvider.selectVod(vod);
+          //SocketService().selectCharacter();
+          print('Selected reaction VOD: ${vod.name} (${vod.videoUrl})');
+          SocketService().selectReaction(vod.name, vod.videoUrl); // ← ADD
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),

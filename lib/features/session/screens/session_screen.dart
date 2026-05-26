@@ -59,7 +59,7 @@ class _SessionScreenState extends State<SessionScreen>
   int _stopGeneration = 0;
   bool _wasSharing = false;
   int _localCamRebuildKey = 0;
-  int _remoteCamRebuildKey = 0; // ← NEW
+  int _remoteCamRebuildKey = 0;
 
   @override
   void initState() {
@@ -71,7 +71,7 @@ class _SessionScreenState extends State<SessionScreen>
     );
     _video = VideoProvider();
     _reward = RewardProvider(vsync: this);
-    _reward.loadRewardBox(); // ← ADD THIS
+    _reward.loadRewardBox();
 
     _screenShare = ScreenShareProvider(
       token: widget.screenShareToken ?? '',
@@ -127,21 +127,44 @@ class _SessionScreenState extends State<SessionScreen>
       _handleButtonAction(d['action']);
     };
 
+    // ── Character select (both therapist + client receive) ────────────────
+    socket.onCharacterSelect = (d) {
+      final name = d['name'] as String? ?? '';
+      final vods = _reward.characterVods;
+      if (vods.isEmpty) return;
+      final vod = vods.firstWhere(
+        (v) => v.name == name,
+        orElse: () => vods.first,
+      );
+      _reward.selectVod(vod);
+      _video.pause();
+    };
+
+    // ── Reaction select (both receive) ────────────────────────────────────
+    socket.onReactionSelect = (d) {
+      final name = d['name'] as String? ?? '';
+      final vods = _reward.reactionVods;
+      if (vods.isEmpty) return;
+      final vod = vods.firstWhere(
+        (v) => v.name == name,
+        orElse: () => vods.first,
+      );
+      _reward.selectVod(vod);
+    };
+
     socket.onPeerConnected = (d) => setState(() {});
     socket.onPeerDisconnected = (d) => setState(() {});
 
-    // Client: sync on join
     if (widget.role == UserRole.client) {
       socket.syncRequest();
     }
   }
 
   void _handleButtonAction(String action) {
-    // Map server actions to your existing UI
     switch (action) {
-      case 'DIVE_IN': /* show dive in UI */
+      case 'DIVE_IN':
         break;
-      case 'ASKING': /* show asking UI  */
+      case 'ASKING':
         break;
       case 'LET_ME_SHARE':
         _screenShare.openBrowserAndShare();
@@ -149,7 +172,7 @@ class _SessionScreenState extends State<SessionScreen>
       case 'REWARD_BOX':
         _reward.toggleDrawer();
         break;
-      case 'TAKE_ME_BACK': /* navigate back  */
+      case 'TAKE_ME_BACK':
         break;
     }
   }
@@ -157,18 +180,15 @@ class _SessionScreenState extends State<SessionScreen>
   void _onScreenShareChange() {
     if (!mounted) return;
     if (_wasSharing && !_screenShare.isSharing) {
-      // Share stopped — bump both keys → force AgoraVideoView recreate
       _wasSharing = false;
       setState(() {
         _localCamRebuildKey++;
-        _remoteCamRebuildKey++; // ← NEW
+        _remoteCamRebuildKey++;
       });
     } else {
       if (_screenShare.isSharing) {
         _wasSharing = true;
-        setState(
-          () => _remoteCamRebuildKey++,
-        ); // ← NEW: bump on share start too
+        setState(() => _remoteCamRebuildKey++);
       } else {
         setState(() {});
       }
@@ -223,7 +243,7 @@ class _SessionScreenState extends State<SessionScreen>
   void _onRewardChange() {
     if (!mounted) return;
     if (!_reward.isDrawerOpen) {
-      _screenFocusNode.requestFocus(); // ← ADD
+      _screenFocusNode.requestFocus();
     }
     setState(() {});
   }
@@ -302,8 +322,7 @@ class _SessionScreenState extends State<SessionScreen>
           LogicalKeyboardKey.alt,
           LogicalKeyboardKey.shift,
           LogicalKeyboardKey.keyG,
-        ): () =>
-            _video.toggleLibrary(),
+        ): () => _video.toggleLibrary(),
         LogicalKeySet(LogicalKeyboardKey.keyS): () =>
             _video.showLibrary ? null : _session.toggleSwap(),
         LogicalKeySet(LogicalKeyboardKey.alt, LogicalKeyboardKey.f4):
@@ -340,7 +359,7 @@ class _SessionScreenState extends State<SessionScreen>
                   child: GestureDetector(
                     onTap: () {
                       _reward.toggleDrawer();
-                      _screenFocusNode.requestFocus(); // ← ADD
+                      _screenFocusNode.requestFocus();
                     },
                     child: Container(color: Colors.black.withOpacity(0.25)),
                   ),
@@ -355,7 +374,10 @@ class _SessionScreenState extends State<SessionScreen>
                     position: _reward.drawerSlide,
                     child: RewardDrawer(
                       rewardProvider: _reward,
-                      onCharacterSelected: (_) => _video.pause(), // ← ADD
+                      onCharacterSelected: (vod) {
+                        _video.pause();
+                        SocketService().selectCharacter(vod.name, vod.thumbnailUrl);
+                      },
                     ),
                   ),
                 ),
@@ -367,8 +389,8 @@ class _SessionScreenState extends State<SessionScreen>
                   onClose: () => _screenFocusNode.requestFocus(),
                 ),
 
-              // ------------ flay reaction on screen -------------------
-              //    FlyingBadgeOverlay(flyingBadges: _reward.flyingBadges),
+              // FlyingBadgeOverlay(flyingBadges: _reward.flyingBadges),
+
               if (_timerVisible)
                 Positioned(
                   bottom: 135,
@@ -380,10 +402,7 @@ class _SessionScreenState extends State<SessionScreen>
                       child: BackdropFilter(
                         filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 28,
-                            vertical: 12,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(50),
                             color: Colors.black.withOpacity(0.25),
@@ -398,9 +417,7 @@ class _SessionScreenState extends State<SessionScreen>
                                 offset: const Offset(0, 6),
                               ),
                               BoxShadow(
-                                color: const Color(
-                                  0xFF2ECC71,
-                                ).withOpacity(0.15),
+                                color: const Color(0xFF2ECC71).withOpacity(0.15),
                                 blurRadius: 14,
                                 spreadRadius: 2,
                               ),
@@ -413,21 +430,13 @@ class _SessionScreenState extends State<SessionScreen>
                                 padding: const EdgeInsets.all(6),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: const Color(
-                                    0xFF2ECC71,
-                                  ).withOpacity(0.20),
+                                  color: const Color(0xFF2ECC71).withOpacity(0.20),
                                   border: Border.all(
-                                    color: const Color(
-                                      0xFF2ECC71,
-                                    ).withOpacity(0.40),
+                                    color: const Color(0xFF2ECC71).withOpacity(0.40),
                                     width: 1,
                                   ),
                                 ),
-                                child: const Icon(
-                                  Icons.timer_rounded,
-                                  color: Color(0xFF2ECC71),
-                                  size: 26,
-                                ),
+                                child: const Icon(Icons.timer_rounded, color: Color(0xFF2ECC71), size: 26),
                               ),
                               const SizedBox(width: 14),
                               Text(
@@ -437,13 +446,7 @@ class _SessionScreenState extends State<SessionScreen>
                                   fontSize: 36,
                                   fontWeight: FontWeight.w800,
                                   letterSpacing: 2.0,
-                                  shadows: [
-                                    Shadow(
-                                      color: Colors.black38,
-                                      blurRadius: 10,
-                                      offset: Offset(0, 2),
-                                    ),
-                                  ],
+                                  shadows: [Shadow(color: Colors.black38, blurRadius: 10, offset: Offset(0, 2))],
                                 ),
                               ),
                             ],
@@ -474,9 +477,7 @@ class _SessionScreenState extends State<SessionScreen>
 
   Widget _remoteCameraTile({bool large = false}) {
     return KeyedSubtree(
-      key: ValueKey(
-        'remote_cam_${_session.remoteUid}_$_remoteCamRebuildKey',
-      ), // ← UPDATED
+      key: ValueKey('remote_cam_${_session.remoteUid}_$_remoteCamRebuildKey'),
       child: CameraTile(session: _session, isRemote: true, large: large),
     );
   }
@@ -514,12 +515,8 @@ class _SessionScreenState extends State<SessionScreen>
     final isTherapist = widget.role == UserRole.therapist;
 
     if (isTherapist) {
-      final Widget mainContent = _session.isSwapped
-          ? _videoPanel()
-          : _remoteCameraTile();
-      final Widget sideTopContent = _session.isSwapped
-          ? _remoteCameraTile(large: true)
-          : _videoPanel();
+      final Widget mainContent = _session.isSwapped ? _videoPanel() : _remoteCameraTile();
+      final Widget sideTopContent = _session.isSwapped ? _remoteCameraTile(large: true) : _videoPanel();
 
       return Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -554,26 +551,19 @@ class _SessionScreenState extends State<SessionScreen>
       );
     }
 
-    // ── CLIENT LAYOUT ──────────────────────────────
     final bool shareActive = _session.isRemoteScreenSharing;
 
     final Widget sideTopContent = shareActive
         ? _screenShareTile()
-        : _video.isVideoMode
-        ? _videoPanel()
-        : Container(color: Colors.black87);
+        : _video.isVideoMode ? _videoPanel() : Container(color: Colors.black87);
 
     final Widget mainContent = _session.isSwapped
         ? (shareActive
               ? _screenShareTile()
-              : _video.isVideoMode
-              ? _videoPanel()
-              : Container(color: Colors.black87))
+              : _video.isVideoMode ? _videoPanel() : Container(color: Colors.black87))
         : _remoteCameraTile();
 
-    final Widget sideTop = _session.isSwapped
-        ? _remoteCameraTile(large: true)
-        : sideTopContent;
+    final Widget sideTop = _session.isSwapped ? _remoteCameraTile(large: true) : sideTopContent;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
