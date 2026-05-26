@@ -89,7 +89,7 @@ class VideoProvider extends ChangeNotifier {
   String? topicsError;
 
   static const String _apiUrl =
-      'https://only-clapped-bride.ngrok-free.dev/api/method/floreo.api.therapist_api.v1.get_full_structure';
+      'https://fabric-unloader-spray.ngrok-free.dev/api/method/floreo.api.desktop_app.v1.get_full_structure';
 
   String? selectedVideoUrl;
   String? selectedThumbnail;

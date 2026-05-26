@@ -1,49 +1,88 @@
 class RewardBoxModel {
-  final Message message;
-  RewardBoxModel({required this.message});
-
-  factory RewardBoxModel.fromJson(Map<String, dynamic> json) =>
-      RewardBoxModel(message: Message.fromJson(json['message']));
+  Message message;
+  RewardBoxModel({
+    required this.message,
+  });
+  factory RewardBoxModel.fromJson(Map<String, dynamic> json) {
+    return RewardBoxModel(
+      message: Message.fromJson(json['message']),
+    );
+  }
 }
 
 class Message {
-  final List<Character> reactions;
-  final List<Character> characters;
-  Message({required this.reactions, required this.characters});
-
-  factory Message.fromJson(Map<String, dynamic> json) => Message(
-        reactions: (json['reactions'] as List)
-            .map((e) => Character.fromJson(e))
-            .toList(),
-        characters: (json['characters'] as List)
-            .map((e) => Character.fromJson(e))
-            .toList(),
-      );
+  List<Reaction> reactions;
+  List<Character> characters;
+  Message({
+    required this.reactions,
+    required this.characters,
+  });
+  factory Message.fromJson(Map<String, dynamic> json) {
+    return Message(
+      reactions: (json['reactions'] as List? ?? [])
+          .map((e) => Reaction.fromJson(e))
+          .toList(),
+      characters: (json['characters'] as List? ?? [])
+          .map((e) => Character.fromJson(e))
+          .toList(),
+    );
+  }
 }
 
 class Character {
-  final String name1;
-  final String vimeoId;
-  final String uploadStatus;
-  final String vimeoUrl;
-  final String vimeoThumbnailUrl;
-  final List<String> videoUrl;
-
+  String name1;
+  String character;
+  
   Character({
+    required this.name1,
+    required this.character,
+  });
+  
+  factory Character.fromJson(Map<String, dynamic> json) {
+    return Character(
+      name1: json['name1'] ?? '',
+      character: json['character'] ?? '',
+    );
+  }
+}
+
+class Reaction {
+  String name1;
+  String vimeoId;
+  String uploadStatus;
+  String? vimeoUrl;
+  String? thumbnailUrl;
+  List<String> videoUrl;
+  String vimeoThumbnailUrl;
+
+  Reaction({
     required this.name1,
     required this.vimeoId,
     required this.uploadStatus,
-    required this.vimeoUrl,
-    required this.vimeoThumbnailUrl,
+    this.vimeoUrl,
+    this.thumbnailUrl,
     required this.videoUrl,
+    required this.vimeoThumbnailUrl,
   });
 
-  factory Character.fromJson(Map<String, dynamic> json) => Character(
-        name1: json['name1'] ?? '',
-        vimeoId: json['vimeo_id'] ?? '',
-        uploadStatus: json['upload_status'] ?? '',
-        vimeoUrl: json['vimeo_url'] ?? '',
-        vimeoThumbnailUrl: json['vimeo_thumbnail_url'] ?? '',
-        videoUrl: List<String>.from(json['video_url'] ?? []),
-      );
+  factory Reaction.fromJson(Map<String, dynamic> json) {
+    final videoUrlRaw = json['video_url'];
+    List<String> videoUrlList = [];
+    
+    if (videoUrlRaw is String && videoUrlRaw.isNotEmpty) {
+      videoUrlList = [videoUrlRaw];
+    } else if (videoUrlRaw is List) {
+      videoUrlList = List<String>.from(videoUrlRaw.cast<String>());
+    }
+
+    return Reaction(
+      name1: json['name1'] ?? '',
+      vimeoId: json['vimeo_id'] ?? '',
+      uploadStatus: json['upload_status'] ?? '',
+      vimeoUrl: json['vimeo_url'],
+      thumbnailUrl: json['thumbnail_url'],
+      videoUrl: videoUrlList,
+      vimeoThumbnailUrl: json['vimeo_thumbnail_url'] ?? '',
+    );
+  }
 }

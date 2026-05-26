@@ -81,59 +81,84 @@ class RewardProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
- Future<List<MiniVod>> _fetchCharacterVods() async {
-  final chars = await RewardApi.fetchCharacterVods();
-  final vods = chars
-      .map((char) => MiniVod.fromCharacter(char, type: 'character'))
-      .toList();
-  await Future.wait(
-    vods.map((vod) async {
-      try {
-        final info = await VimeoService.getVideoInfo(vod.id);
-        if (info.thumb.isNotEmpty) vod.thumbnailUrl = info.thumb;
-        if (info.duration != null && info.duration!.inSeconds > 0) {
-          vod.duration = info.duration!;
-        } else {
-          // fallback: get from video file directly
+
+  /// Fetch character VODs with thumbnail + duration
+  Future<List<MiniVod>> _fetchCharacterVods() async {
+    final chars = await RewardApi.fetchCharacterVods();
+    final vods = chars.map((char) {
+      // Convert relative path to full URL
+      final gifPath = char.character.startsWith('http') 
+          ? char.character 
+          : 'https://only-clapped-bride.ngrok-free.dev${char.character}';
+      
+      var vod = MiniVod.fromCharacter(char);
+      vod.thumbnailUrl = gifPath;
+      return vod;
+    }).toList();
+    
+    await Future.wait(
+      vods.map((vod) async {
+        try {
           final dur = await getMediaDuration(vod.videoUrl);
           if (dur != null) vod.duration = dur;
+        } catch (e) {
+          print('⚠ Failed fetching duration for ${vod.name}: $e');
         }
-      } catch (e) {
-        print('Failed for ${vod.name}: $e');
-      }
-    }),
-  );
-  return vods;
-}
+      }),
+    );
+    return vods;
+  }
 
-// same for _fetchReactionVods
-Future<List<MiniVod>> _fetchReactionVods() async {
-  final reacts = await RewardApi.fetchReactionVods();
-  final vods = reacts
-      .map((react) => MiniVod.fromCharacter(react, type: 'reaction'))
-      .toList();
-  await Future.wait(
-    vods.map((vod) async {
-      try {
-        final info = await VimeoService.getVideoInfo(vod.id);
-        if (info.thumb.isNotEmpty) vod.thumbnailUrl = info.thumb;
-        if (info.duration != null && info.duration!.inSeconds > 0) {
-          vod.duration = info.duration!;
-        } else {
-          final dur = await getMediaDuration(vod.videoUrl); // ← fallback
-          if (dur != null) vod.duration = dur;
-        }
-      } catch (e) {
-        print('Failed for ${vod.name}: $e');
+  /// Fetch reaction VODs with thumbnail + duration
+  Future<List<MiniVod>> _fetchReactionVods() async {
+    try {
+      print('DEBUG: Calling RewardApi.fetchReactionVods()...');
+      final reacts = await RewardApi.fetchReactionVods();
+      print('DEBUG: Reactions fetched: ${reacts.length}');
+      for (var r in reacts) {
+        print('  - ${r.name1} (${r.vimeoId})');
       }
-    }),
-  );
-  return vods;
-}
+      
+      final vods = reacts.map((react) => MiniVod.fromReaction(react)).toList();
+      print('DEBUG: MiniVods created: ${vods.length}');
+      
+      await Future.wait(
+        vods.map((vod) async {
+          try {
+            final info = await VimeoService.getVideoInfo(vod.id);
+            print('✓ Vimeo info for ${vod.name}: thumb=${info.thumb}, duration=${info.duration}');
+            if (info.thumb.isNotEmpty) {
+              vod.thumbnailUrl = info.thumb;
+            } else {
+              // Fallback to vimeoThumbnailUrl from API
+              print('⚠ No thumb from Vimeo, using API thumbnail');
+            }
+            if (info.duration != null && info.duration!.inSeconds > 0) {
+              vod.duration = info.duration!;
+            } else {
+              final dur = await getMediaDuration(vod.videoUrl);
+              if (dur != null) vod.duration = dur;
+            }
+          } catch (e) {
+            print('⚠ Failed fetching vimeo info for ${vod.name}: $e. Using fallback.');
+            // Use videoUrl to get duration
+            final dur = await getMediaDuration(vod.videoUrl);
+            if (dur != null) vod.duration = dur;
+          }
+        }),
+      );
+      print('DEBUG: Final vods: ${vods.map((v) => '${v.name}(thumb:${v.thumbnailUrl.isNotEmpty})').join(', ')}');
+      return vods;
+    } catch (e) {
+      print('ERROR in _fetchReactionVods: $e');
+      rethrow;
+    }
+  }
+
   void clearReactionVod() {
-  _selectedReactionVod = null;
-  notifyListeners();
-}
+    _selectedReactionVod = null;
+    notifyListeners();
+  }
 
   void _prefetchVisibleThumbnails({int visibleCount = 12}) {
     final allVods = [...characterVods, ...reactionVods];
@@ -162,8 +187,9 @@ Future<List<MiniVod>> _fetchReactionVods() async {
   void selectVod(MiniVod vod) {
     if (vod.category == 'Character') {
       _selectedCharacterVod = vod;
-    } else {
+    } else if (vod.category == 'Reaction') {
       _selectedReactionVod = vod;
+      // Auto-clear after reaction duration
       Future.delayed(vod.duration, () {
         _selectedReactionVod = null;
         notifyListeners();
