@@ -222,6 +222,9 @@ class _SessionScreenState extends State<SessionScreen>
 
   void _onRewardChange() {
     if (!mounted) return;
+    if (!_reward.isDrawerOpen) {
+      _screenFocusNode.requestFocus(); // ← ADD
+    }
     setState(() {});
   }
 
@@ -289,13 +292,18 @@ class _SessionScreenState extends State<SessionScreen>
       bindings: {
         LogicalKeySet(LogicalKeyboardKey.space): () =>
             _video.isVideoMode ? _video.togglePlayPause() : null,
-        LogicalKeySet(LogicalKeyboardKey.keyJ): () =>
+        LogicalKeySet(LogicalKeyboardKey.alt, LogicalKeyboardKey.keyJ): () =>
             _video.isVideoMode ? _video.skipBack() : null,
-        LogicalKeySet(LogicalKeyboardKey.keyL): () =>
+        LogicalKeySet(LogicalKeyboardKey.alt, LogicalKeyboardKey.keyL): () =>
             _video.isVideoMode ? _video.skipForward() : null,
-        LogicalKeySet(LogicalKeyboardKey.keyM): () =>
+        LogicalKeySet(LogicalKeyboardKey.alt, LogicalKeyboardKey.keyM): () =>
             _video.isVideoMode ? _video.toggleLibrary() : null,
-        LogicalKeySet(LogicalKeyboardKey.keyG): () => _video.toggleLibrary(),
+        LogicalKeySet(
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.shift,
+          LogicalKeyboardKey.keyG,
+        ): () =>
+            _video.toggleLibrary(),
         LogicalKeySet(LogicalKeyboardKey.keyS): () =>
             _video.showLibrary ? null : _session.toggleSwap(),
         LogicalKeySet(LogicalKeyboardKey.alt, LogicalKeyboardKey.f4):
@@ -330,7 +338,10 @@ class _SessionScreenState extends State<SessionScreen>
               if (_reward.isDrawerOpen)
                 Positioned.fill(
                   child: GestureDetector(
-                    onTap: _reward.toggleDrawer,
+                    onTap: () {
+                      _reward.toggleDrawer();
+                      _screenFocusNode.requestFocus(); // ← ADD
+                    },
                     child: Container(color: Colors.black.withOpacity(0.25)),
                   ),
                 ),
@@ -342,7 +353,10 @@ class _SessionScreenState extends State<SessionScreen>
                   right: 12,
                   child: SlideTransition(
                     position: _reward.drawerSlide,
-                    child: RewardDrawer(rewardProvider: _reward),
+                    child: RewardDrawer(
+                      rewardProvider: _reward,
+                      onCharacterSelected: (_) => _video.pause(), // ← ADD
+                    ),
                   ),
                 ),
 
@@ -353,9 +367,8 @@ class _SessionScreenState extends State<SessionScreen>
                   onClose: () => _screenFocusNode.requestFocus(),
                 ),
 
-          // ------------ flay reaction on screen -------------------
-          //    FlyingBadgeOverlay(flyingBadges: _reward.flyingBadges),
-
+              // ------------ flay reaction on screen -------------------
+              //    FlyingBadgeOverlay(flyingBadges: _reward.flyingBadges),
               if (_timerVisible)
                 Positioned(
                   bottom: 135,

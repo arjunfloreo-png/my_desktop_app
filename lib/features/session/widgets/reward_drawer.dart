@@ -7,8 +7,13 @@ import 'hover_preview_widget.dart';
 
 class RewardDrawer extends StatefulWidget {
   final RewardProvider rewardProvider;
+  final void Function(MiniVod)? onCharacterSelected; // ← ADD
 
-  const RewardDrawer({super.key, required this.rewardProvider});
+  const RewardDrawer({
+    super.key,
+    required this.rewardProvider,
+    this.onCharacterSelected, // ← ADD
+  });
 
   @override
   State<RewardDrawer> createState() => _RewardDrawerState();
@@ -231,49 +236,66 @@ class _RewardDrawerState extends State<RewardDrawer>
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
           ),
-         itemBuilder: (context, index) {
+      
+      itemBuilder: (context, index) {
   final vod = all[index];
-  print('Building tile for ${vod.thumbnailUrl}');
-  return Column(
-    children: [
-      Expanded(
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: vod.character != null
-              ? CachedNetworkImage(
-                  imageUrl: vod.thumbnailUrl,
-                  fit: BoxFit.cover,
-                  httpHeaders: const {'ngrok-skip-browser-warning': 'true'},
-                  placeholder: (context, url) => Container(
-                    color: Colors.grey[800],
+  final isSelected = widget.rewardProvider.selectedCharacterVod?.id == vod.id;
+  const accent = Color(0xFF00bd74);
+
+  return GestureDetector(
+    onTap: () {
+      widget.rewardProvider.selectVod(vod);
+      widget.onCharacterSelected?.call(vod);
+    },
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isSelected ? accent : Colors.transparent,
+          width: 2,
+        ),
+        boxShadow: isSelected
+            ? [BoxShadow(color: accent.withOpacity(0.4), blurRadius: 10)]
+            : null,
+      ),
+      child: Column(
+        children: [
+          Expanded(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: _cachedThumbnail(vod.thumbnailUrl),
+                ),
+                if (isSelected)
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      color: accent.withOpacity(0.2),
+                    ),
                     child: const Center(
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Color(0xFF00bd74),
-                        ),
-                      ),
+                      child: Icon(Icons.check_circle_rounded, color: accent, size: 32),
                     ),
                   ),
-                  errorWidget: (context, url, error) => Container(
-                    color: Colors.grey[800],
-                    child:
-                        const Icon(Icons.person, color: Color(0xFF00bd74)),
-                  ),
-                )
-              : Container(color: Colors.grey[800]),
-        ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            vod.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: isSelected ? accent : Colors.black87,
+            ),
+          ),
+        ],
       ),
-      const SizedBox(height: 4),
-      Text(
-        vod.name,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700),
-      ),
-    ],
+    ),
   );
 },
         ),
