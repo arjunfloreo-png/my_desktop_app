@@ -329,13 +329,22 @@ class _VideoPanelState extends State<VideoPanel> {
 
   // Add this method to _VideoPanelState class in video_panel.dart
 
- Widget _buildCharacterGifOverlay() {
+Widget _buildCharacterGifOverlay() {
   final vod = widget.rewardProvider.selectedCharacterVod;
   if (vod == null) return const SizedBox.shrink();
 
+  final isTherapist = widget.role == UserRole.therapist;
+  final alignment = isTherapist 
+    ? Alignment.bottomLeft 
+    : Alignment.bottomRight;
+  final position = isTherapist
+    ? EdgeInsets.only(bottom: 16, left: 16)
+    : EdgeInsets.only(bottom: 16, right: 16);
+
   return Positioned(
-    bottom: 16,
-    left: 16,
+    bottom: position.bottom,
+    left: isTherapist ? position.left : null,
+    right: isTherapist ? null : position.right,
     child: IgnorePointer(
       child: TweenAnimationBuilder<double>(
         key: ValueKey(vod.id),
@@ -345,7 +354,7 @@ class _VideoPanelState extends State<VideoPanel> {
         builder: (context, value, child) => Opacity(
           opacity: value.clamp(0.0, 1.0),
           child: Transform.scale(
-            alignment: Alignment.bottomLeft,
+            alignment: alignment,
             scale: value,
             child: child,
           ),
@@ -353,26 +362,27 @@ class _VideoPanelState extends State<VideoPanel> {
         child: Container(
           width: 160,
           height: 160,
-          // decoration: BoxDecoration(
-          //   borderRadius: BorderRadius.circular(16),
-          //   border: Border.all(color: const Color(0xFF00bd74), width: 2),
-          //   boxShadow: [
-          //     BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 12),
-          //   ],
-          // ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(14),
-            child: Image.network( 
+            child: Image.network(
               height: 100,
               width: 100,
               vod.thumbnailUrl,
               fit: BoxFit.cover,
               loadingBuilder: (_, child, progress) => progress == null
                   ? child
-                  : const Center(child: CircularProgressIndicator(color: Color(0xFF00bd74))),
+                  : const Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF00bd74),
+                      ),
+                    ),
               errorBuilder: (_, __, ___) => Container(
                 color: Colors.grey[800],
-                child: const Icon(Icons.image_not_supported, color: Color(0xFF00bd74), size: 40),
+                child: const Icon(
+                  Icons.image_not_supported,
+                  color: Color(0xFF00bd74),
+                  size: 40,
+                ),
               ),
             ),
           ),

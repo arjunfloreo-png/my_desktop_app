@@ -212,41 +212,53 @@ class VideoProvider extends ChangeNotifier {
 
   // SELECT VIDEO
   Future<void> selectVideo(VideoItem item) async {
-    if (!isExternal && isVideoMode) {
-      await _player.stop();
-    }
-
-    selectedVideoUrl = item.url;
-
-    selectedThumbnail = item.thumbnail;
-
-    _currentVideoType = item.videoType;
-
-    isVideoMode = true;
-
-    showLibrary = false;
-
-    if (item.isExternal) {
-      isVideoPlaying = true;
-
-      isBuffering = false;
-    } else {
-      isBuffering = true;
-
-      notifyListeners();
-
-      await _player.open(Media(item.url), play: true);
-    }
-
-    // ← ADD (after setting selectedVideoUrl)
-    SocketService().selectVideo(
-      item.url, // videoId
-      item.url, // videoUrl
-      title: item.title,
-    );
-
-    notifyListeners();
+  if (!isExternal && isVideoMode) {
+    await _player.stop();
   }
+
+  selectedVideoUrl = item.url;
+  selectedThumbnail = item.thumbnail;
+  _currentVideoType = item.videoType;
+  isVideoMode = true;
+  showLibrary = false;
+
+  if (item.isExternal) {
+    isVideoPlaying = true;
+    isBuffering = false;
+  } else {
+    isBuffering = true;
+    notifyListeners();
+    await _player.open(Media(item.url), play: true);
+  }
+
+  // EXTRACT YT ID IF EXTERNAL
+  String videoId = item.url;
+  if (item.videoType == VideoType.external) {
+    videoId = _extractYoutubeId(item.url) ?? item.url;
+  }
+
+  SocketService().selectVideo(
+    videoId,
+    item.url,
+    title: item.title,
+  );
+
+  notifyListeners();
+}
+
+String? _extractYoutubeId(String url) {
+  try {
+    final uri = Uri.parse(url);
+    
+    if (uri.host.contains('youtu.be')) {
+      return uri.pathSegments.first;
+    } else if (uri.host.contains('youtube.com')) {
+      return uri.queryParameters['v'];
+    }
+  } catch (_) {}
+  
+  return null;
+}
 
   // PLAY URL
   Future<void> playFromUrl(String url, {VideoType type = VideoType.mp4}) async {
